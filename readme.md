@@ -69,6 +69,12 @@ Create a `.env` file or set your Together.ai API key:
 ```bash
 export TOGETHER_API_KEY="your_together_ai_api_key_here"
 ```
+### 3a. Set TOGETHER_API_KEY_DIRECT in app.py
+
+```bash
+line 65| TOGETHER_API_KEY_DIRECT = "YOUR_TOGETHER_API_KEY"
+```
+
 
 You can get your API key from [Together.ai](https://api.together.xyz/)
 
