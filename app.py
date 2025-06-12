@@ -1,21 +1,25 @@
-"""
-Mai - Emotionally Intelligent AI Assistant
-Flask web application that coordinates LLM and memory systems
-"""
-
 import os
 import json
 import uuid
 from datetime import datetime
-from flask import Flask, render_template, request, jsonify, session
-from typing import List, Dict, Optional
 import logging
+import asyncio
+from pathlib import Path
+import tempfile
+import atexit
+from typing import List, Dict, Optional
+from contextlib import asynccontextmanager
+from fastapi import FastAPI, Request, HTTPException, Form, UploadFile, File, Depends
+from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse, FileResponse
+from fastapi.templating import Jinja2Templates
+from fastapi.middleware.cors import CORSMiddleware
+from starlette.middleware.sessions import SessionMiddleware
+from starlette.background import BackgroundTasks
 
 # Import Mai's core components
-# Assuming llm_handler.py and memory_manager.py are in the same directory
 from llm_handler import LLMHandler
-# You'll need to create a basic MemoryManager class if you haven't already.
-# For now, it will simply pass or raise a NotImplementedError.
+from voice_interface import VoiceInterface
+
 try:
     from memory_manager import MemoryManager
 except ImportError:
@@ -23,8 +27,6 @@ except ImportError:
     class MemoryManager:
         def __init__(self, *args, **kwargs):
             logging.info("Placeholder MemoryManager initialized.")
-            # This might raise an error if your actual MemoryManager expects certain init args.
-            # Adjust if your real MemoryManager needs specific setup.
             pass
         def retrieve_memories(self, query: str, user_id: str, max_memories: int) -> List[str]:
             logging.warning("MemoryManager.retrieve_memories is a placeholder.")
@@ -42,7 +44,6 @@ except ImportError:
             logging.warning("MemoryManager.get_recent_memories is a placeholder.")
             return []
 
-
 # Configure logging
 logging.basicConfig(
     level=logging.INFO,
@@ -50,146 +51,167 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# Initialize Flask app
-app = Flask(__name__)
-# IMPORTANT: Change this secret key in production!
-app.secret_key = os.getenv('FLASK_SECRET_KEY', 'mai-secret-key-change-in-production')
+# Load environment variables (ensure you have a .env file with FLASK_SECRET_KEY, TOGETHER_API_KEY)
+from dotenv import load_dotenv
+load_dotenv()
 
-# Global instances (initialized at application startup or on first request)
+# Global instances of Mai's core components
 llm_handler: Optional[LLMHandler] = None
 memory_manager: Optional[MemoryManager] = None
+voice_interface: Optional[VoiceInterface] = None
 
-# --- Configuration for API Key ---
-# Option 1: Provide API key directly here for development (LESS SECURE FOR PROD)
-# TOGETHER_API_KEY_DIRECT = "YOUR-TOGETHER.AI-API"
-TOGETHER_API_KEY_DIRECT = None # Set to None to force environment variable or for deployment
+TOGETHER_API_KEY_DIRECT = os.getenv("TOGETHER_API_KEY")
+AUDIO_OUTPUT_DIR = Path("audio_output")
+AUDIO_OUTPUT_DIR.mkdir(exist_ok=True)
 
-# Option 2: Will fall back to environment variable TOGETHER_API_KEY
-# if TOGETHER_API_KEY_DIRECT is None or not set.
-# This logic is handled within the initialize_mai_components function.
-# --- End API Key Configuration ---
-
-def initialize_mai_components(api_key: Optional[str] = None):
+@asynccontextmanager
+async def lifespan(app: FastAPI):
     """
-    Initialize Mai's core components (LLM handler and memory manager).
-    This function will be called on the first request to ensure components are ready.
-    
-    Args:
-        api_key: Optional API key to pass to LLMHandler. If None, LLMHandler
-                 will look for the TOGETHER_API_KEY environment variable.
+    Asynchronously initialize Mai's core components at startup
+    and gracefully shut down resources at application exit.
     """
-    global llm_handler, memory_manager
+    global llm_handler, memory_manager, voice_interface
     
-    if llm_handler is None:
+    logger.info("Starting Mai components initialization (via lifespan)...")
+    try:
+        # Get API key
+        final_api_key = TOGETHER_API_KEY_DIRECT
+        if not final_api_key:
+            logger.critical("CRITICAL ERROR: TOGETHER_API_KEY is not set in environment or .env file.")
+            raise ValueError("TOGETHER_API_KEY is missing.")
+
+        # 1. Initialize LLM Handler
+        logger.info("Initializing LLM handler...")
+        llm_handler = LLMHandler(api_key=final_api_key) 
+        logger.info("LLM handler initialized successfully.")
+        
+        logger.info("Testing LLM handler connection...")
+        if await llm_handler.test_connection():
+            logger.info("LLM handler connection test successful.")
+        else:
+            logger.error("LLM handler connection test failed. This might cause issues.")
+
+        # 2. Initialize Memory Manager
+        logger.info("Initializing memory manager...")
+        memory_manager = MemoryManager() 
+        logger.info("Memory manager initialized successfully.")
+
+        # 3. Initialize Voice Interface
+        logger.info("Initializing voice interface...")
+        if llm_handler is None:
+            raise RuntimeError("LLMHandler was not initialized, cannot initialize VoiceInterface.")
+        voice_interface = VoiceInterface(llm_handler=llm_handler)
+        logger.info("Voice interface initialized successfully.")
+
+    except ValueError as ve:
+        logger.critical(f"CRITICAL ERROR: API key is missing or invalid - {ve}")
+        raise RuntimeError(f"API key missing or invalid: {ve}") from ve
+    except Exception as e:
+        logger.critical(f"CRITICAL ERROR: Unexpected error during component initialization: {e}", exc_info=True)
+        raise RuntimeError(f"An unexpected error occurred during Mai component setup: {e}") from e
+
+    logger.info("All Mai components initialized.")
+    yield  # This yields control to the application, which will now start processing requests
+
+    # --- Code after yield runs on shutdown ---
+    logger.info("FastAPI application is shutting down (via lifespan)...")
+    if llm_handler and hasattr(llm_handler, 'aclose'):
+        logger.info("Shutting down LLMHandler's HTTP client gracefully...")
         try:
-            logger.info("Initializing LLM handler...")
-            # Pass the determined API key to LLMHandler
-            llm_handler = LLMHandler(api_key=api_key) 
-            logger.info("LLM handler initialized successfully.")
-        except ValueError as ve: # Catch specific ValueError from LLMHandler if API key is missing
-            logger.critical(f"CRITICAL ERROR: Failed to initialize LLM handler - {ve}")
-            raise RuntimeError("API key is missing or invalid. Please set TOGETHER_API_KEY or provide it directly.") from ve
+            await llm_handler.aclose()
+            logger.info("LLMHandler HTTP client closed successfully.")
         except Exception as e:
-            logger.critical(f"CRITICAL ERROR: Unexpected error initializing LLM handler: {e}", exc_info=True)
-            raise RuntimeError("An unexpected error occurred during LLM setup.") from e
-    
-    if memory_manager is None:
-        try:
-            logger.info("Initializing memory manager...")
-            # If your MemoryManager needs an API key or other init args, pass them here.
-            # Example: memory_manager = MemoryManager(api_key=api_key, db_path='my_db.sqlite')
-            memory_manager = MemoryManager() 
-            logger.info("Memory manager initialized successfully.")
-        except Exception as e:
-            logger.critical(f"CRITICAL ERROR: Failed to initialize memory manager: {e}", exc_info=True)
-            raise RuntimeError("An unexpected error occurred during Memory Manager setup.") from e
+            logger.error(f"Error closing LLMHandler HTTP client during shutdown: {e}", exc_info=True)
+    logger.info("FastAPI application shutdown complete (via lifespan).")
 
-# Use Flask's `before_request` to ensure components are initialized
-# This is a common pattern for "lazy" initialization in Flask
-@app.before_request
-def before_first_request():
-    """Ensure Mai components are initialized before handling any request."""
-    # Only initialize if they haven't been already
-    if llm_handler is None or memory_manager is None:
-        logger.info("First request detected. Initializing Mai components...")
-        try:
-            initialize_mai_components(api_key=TOGETHER_API_KEY_DIRECT)
-            logger.info("Mai components initialized for first request.")
-        except RuntimeError as e:
-            logger.error(f"Failed to initialize Mai components on first request: {e}")
-            # If initialization fails, we might want to return an error page or similar
-            # For now, just re-raise to show the error
-            raise # This will cause a 500 error, which is caught by @app.errorhandler(500)
+# --- FastAPI App Setup ---
+app = FastAPI(
+    title="Mai - Emotionally Intelligent AI Assistant",
+    description="An AI assistant powered by Together.ai, with voice and memory capabilities.",
+    version="0.1.0",
+    lifespan=lifespan
+)
 
-def get_user_id() -> str:
-    """Get or create a unique user ID for session management"""
-    if 'user_id' not in session:
-        session['user_id'] = str(uuid.uuid4())
-        logger.info(f"Created new user session: {session['user_id']}")
-    return session['user_id']
+# Get secret key from environment variable
+SESSION_SECRET_KEY = os.getenv('FLASK_SECRET_KEY', 'mai-secret-key-change-in-production')
+if SESSION_SECRET_KEY == 'mai-secret-key-change-in-production':
+    logger.warning("FLASK_SECRET_KEY environment variable not set. Using default. CHANGE THIS IN PRODUCTION!")
 
-def get_chat_history() -> List[Dict]:
-    """Get chat history from session"""
-    if 'chat_history' not in session:
-        session['chat_history'] = []
-    return session['chat_history']
+# Add Session Middleware
+app.add_middleware(SessionMiddleware, secret_key=SESSION_SECRET_KEY)
 
-def add_to_chat_history(role: str, content: str, max_history: int = 20):
-    """Add message to chat history with size limit"""
-    chat_history = get_chat_history()
-    
+# Add CORS Middleware for development
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # Adjust this to specific origins in production
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# Templates setup
+templates = Jinja2Templates(directory="templates")
+
+# Static files setup for audio responses
+from fastapi.staticfiles import StaticFiles
+app.mount("/audio_output", StaticFiles(directory=AUDIO_OUTPUT_DIR), name="audio_output")
+
+# --- Helper Functions ---
+
+async def get_user_id(request: Request) -> str:
+    if 'user_id' not in request.session:
+        request.session['user_id'] = str(uuid.uuid4())
+        logger.info(f"Created new user session: {request.session['user_id']}")
+    return request.session['user_id']
+
+async def get_chat_history(request: Request) -> List[Dict]:
+    if 'chat_history' not in request.session:
+        request.session['chat_history'] = []
+    return request.session['chat_history']
+
+async def add_to_chat_history(request: Request, role: str, content: str, max_history: int = 20):
+    chat_history = await get_chat_history(request)
     chat_history.append({
         'role': role,
         'content': content,
         'timestamp': datetime.now().isoformat()
     })
-    
-    # Keep only recent messages to prevent session from growing too large
     if len(chat_history) > max_history:
-        # This creates a new list, which is fine for small histories.
-        # For very large histories, consider a more efficient deque or database.
-        session['chat_history'] = chat_history[-max_history:]
+        request.session['chat_history'] = chat_history[-max_history:]
     else:
-        session['chat_history'] = chat_history # Ensure session variable is updated
+        request.session['chat_history'] = chat_history
 
-# --- Flask Routes ---
-@app.route('/')
-def index():
-    """Main chat interface"""
-    return render_template('chat.html')
+# --- FastAPI Routes ---
 
-@app.route('/chat', methods=['POST'])
-def chat():
-    """Handle chat messages from the user"""
-    # Components are guaranteed to be initialized by @app.before_request
-    assert llm_handler is not None and memory_manager is not None, "Mai components not initialized!"
+@app.get("/", response_class=HTMLResponse)
+async def read_root(request: Request):
+    return templates.TemplateResponse("chat.html", {"request": request})
+
+@app.get("/audio_interface", response_class=HTMLResponse)
+async def audio_interface_route(request: Request):
+    return templates.TemplateResponse("audio_chat.html", {"request": request})
+
+@app.post("/chat")
+async def chat_endpoint(
+    request: Request,
+    message: dict
+): 
+    if llm_handler is None or memory_manager is None:
+        logger.error("Mai components not initialized in /chat route.")
+        raise HTTPException(status_code=503, detail='Mai is not ready. Please try again or check server logs.')
 
     try:
-        # Get request data
-        data = request.get_json()
-        if not data or 'message' not in data:
-            logger.warning("Received chat request with no message data.")
-            return jsonify({
-                'success': False,
-                'error': 'No message provided'
-            }), 400
-        
-        user_message = data['message'].strip()
+        user_message = message.get('message', '').strip()
         if not user_message:
-            logger.warning("Received empty user message.")
-            return jsonify({
-                'success': False,
-                'error': 'Empty message'
-            }), 400
+            logger.warning("Received chat request with no message data.")
+            raise HTTPException(status_code=400, detail='No message provided')
         
-        # Get user context
-        user_id = get_user_id()
-        chat_history = get_chat_history()
+        user_id = await get_user_id(request)
+        chat_history = await get_chat_history(request)
         
         logger.info(f"User {user_id}: Processing message: '{user_message[:70]}{'...' if len(user_message) > 70 else ''}'")
         
-        # Retrieve relevant memories
-        logger.debug("Retrieving relevant memories...") # Changed to debug
+        logger.debug("Retrieving relevant memories...")
         memory_context = memory_manager.retrieve_memories(
             query=user_message,
             user_id=user_id,
@@ -197,9 +219,8 @@ def chat():
         )
         logger.info(f"Retrieved {len(memory_context)} relevant memories for user {user_id}.")
         
-        # Generate response using LLM
-        logger.debug("Generating response using LLM...") # Changed to debug
-        llm_response = llm_handler.generate_response(
+        logger.debug("Generating response using LLM...")
+        llm_response = await llm_handler.generate_response(
             user_message=user_message,
             chat_history=chat_history,
             memory_context=memory_context
@@ -207,17 +228,16 @@ def chat():
         
         if not llm_response['success']:
             logger.error(f"LLM generation failed for user {user_id}: {llm_response.get('error', 'Unknown error')}")
-            return jsonify({
-                'success': False,
-                'error': 'Failed to generate response',
-                'message': llm_response.get('response', 'Sorry, I encountered an error generating a response.')
-            }), 500
+            raise HTTPException(
+                status_code=500, 
+                detail='Failed to generate response', 
+                headers={"X-Mai-Error": llm_response.get('response', 'Sorry, I encountered an error generating a response.')}
+            )
         
         ai_response = llm_response['response']
         logger.info(f"Mai response: '{ai_response[:70]}{'...' if len(ai_response) > 70 else ''}'")
         
-        # Store conversation in long-term memory
-        logger.debug("Storing conversation in memory...") # Changed to debug
+        logger.debug("Storing conversation in memory...")
         stored_memories = memory_manager.store_conversation(
             user_message=user_message,
             ai_response=ai_response,
@@ -225,12 +245,10 @@ def chat():
         )
         logger.info(f"Stored {stored_memories} new memories for user {user_id}.")
         
-        # Add to short-term chat history
-        add_to_chat_history('user', user_message)
-        add_to_chat_history('assistant', ai_response)
+        await add_to_chat_history(request, 'user', user_message)
+        await add_to_chat_history(request, 'assistant', ai_response)
         
-        # Return response
-        return jsonify({
+        return JSONResponse({
             'success': True,
             'message': ai_response,
             'metadata': {
@@ -241,194 +259,223 @@ def chat():
             }
         })
         
+    except HTTPException:
+        raise
     except Exception as e:
-        logger.exception(f"Unhandled error in chat endpoint for user {get_user_id()}: {e}") # Use exception for full traceback
-        return jsonify({
-            'success': False,
-            'error': 'Internal server error',
-            'message': 'Sorry, I encountered an unexpected error. Please try again.'
-        }), 500
+        logger.exception(f"Unhandled error in chat endpoint for user {await get_user_id(request)}: {e}")
+        raise HTTPException(
+            status_code=500, 
+            detail='Internal server error', 
+            headers={"X-Mai-Error": 'Sorry, I encountered an unexpected error. Please try again.'}
+        )
 
-@app.route('/clear_chat', methods=['POST'])
-def clear_chat():
-    """Clear current chat session (but keep long-term memories)"""
+@app.post("/voice_chat")
+async def voice_chat_endpoint(
+    request: Request,
+    audio: UploadFile = File(...)
+): 
+    if voice_interface is None:
+        logger.error("VoiceInterface not initialized in /voice_chat route.")
+        raise HTTPException(status_code=503, detail='Mai voice services are not ready. Please try again or check server logs.')
+
+    temp_audio_file_path_str: Optional[str] = None
     try:
-        session['chat_history'] = []
-        logger.info(f"Cleared chat history for user {get_user_id()}")
+        # Save uploaded audio to a temporary file
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".webm") as temp_audio_file:
+            contents = await audio.read()
+            temp_audio_file.write(contents)
+            temp_audio_file_path_str = temp_audio_file.name
         
-        return jsonify({
-            'success': True,
-            'message': 'Chat history cleared successfully.'
-        })
-        
+        logger.info(f"Saved temporary audio file: {temp_audio_file_path_str}")
+
+        audio_file_path_obj = Path(temp_audio_file_path_str)
+
+        transcription_result = await voice_interface.transcribe_audio_file(audio_file_path_obj)
+
+        if transcription_result['success']:
+            user_input = transcription_result['transcribed_text']
+            if not user_input:
+                logger.warning("Transcribed audio was empty.")
+                return JSONResponse({"status": "no_speech", "message": "No speech detected or clear text extracted."})
+
+            interaction_result = await voice_interface.process_voice_interaction(user_input=user_input)
+
+            if interaction_result['success']:
+                audio_filename_for_frontend = Path(interaction_result['audio_path']).name if interaction_result['audio_path'] else None
+
+                return JSONResponse({
+                    "status": "success",
+                    "user_input": interaction_result['user_input'],
+                    "mai_response": interaction_result['mai_response'],
+                    "audio_filename": audio_filename_for_frontend
+                })
+            else:
+                logger.error(f"LLM interaction failed: {interaction_result.get('error', 'Unknown error')}")
+                raise HTTPException(
+                    status_code=500, 
+                    detail=interaction_result.get('error', 'Failed to get a response from Mai.'), 
+                    headers={"X-Mai-Response": interaction_result.get('mai_response', "I'm sorry, I encountered an error generating my response.")}
+                )
+        else:
+            logger.error(f"Transcription failed: {transcription_result.get('error', 'Unknown transcription error')}")
+            raise HTTPException(
+                status_code=500, 
+                detail=transcription_result.get('error', 'Failed to transcribe audio.'), 
+                headers={"X-Mai-Response": "I'm sorry, I couldn't understand what you said."}
+            )
+
+    except HTTPException:
+        raise
     except Exception as e:
-        logger.exception(f"Error clearing chat history for user {get_user_id()}: {e}")
-        return jsonify({
-            'success': False,
-            'error': 'Failed to clear chat history'
-        }), 500
+        logger.error(f"Unhandled error in voice_chat endpoint: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"An unexpected error occurred: {str(e)}")
+    finally:
+        if temp_audio_file_path_str and os.path.exists(temp_audio_file_path_str):
+            os.remove(temp_audio_file_path_str)
+            logger.info(f"Removed temporary audio file: {temp_audio_file_path_str}")
 
-@app.route('/clear_memory', methods=['POST'])
-def clear_memory():
-    """Clear all long-term memories for the current user"""
-    # Components are guaranteed to be initialized by @app.before_request
-    assert memory_manager is not None, "Memory Manager not initialized!"
+@app.get("/get_audio_response/{filename}")
+async def get_audio_response_endpoint(filename: str):
+    file_path = AUDIO_OUTPUT_DIR / filename
 
+    # Security check to prevent directory traversal
+    if not file_path.resolve().parent == AUDIO_OUTPUT_DIR.resolve():
+        logger.warning(f"Attempted to access file outside audio_output directory: {filename}")
+        raise HTTPException(status_code=400, detail='Invalid file path')
+
+    if not file_path.is_file():
+        logger.error(f"Audio file not found: {filename}")
+        raise HTTPException(status_code=404, detail='Audio file not found')
+    
+    return FileResponse(path=file_path, media_type="audio/mpeg")
+
+@app.post("/clear_chat")
+async def clear_chat_endpoint(request: Request):
     try:
-        user_id = get_user_id()
+        request.session['chat_history'] = []
+        if voice_interface:
+            voice_interface.clear_chat_history()
+        logger.info(f"Cleared chat history for user {await get_user_id(request)}")
+        return JSONResponse({'success': True, 'message': 'Chat history cleared successfully.'})
+    except Exception as e:
+        logger.exception(f"Error clearing chat history for user {await get_user_id(request)}: {e}")
+        raise HTTPException(status_code=500, detail='Failed to clear chat history')
+
+@app.post("/clear_memory")
+async def clear_memory_endpoint(request: Request):
+    if memory_manager is None:
+        logger.error("Memory Manager not initialized in /clear_memory route.")
+        raise HTTPException(status_code=503, detail='Memory services are not ready.')
+    try:
+        user_id = await get_user_id(request)
         deleted_count = memory_manager.clear_user_memories(user_id)
-        
         logger.info(f"Cleared {deleted_count} memories for user {user_id}.")
-        
-        return jsonify({
+        return JSONResponse({
             'success': True,
             'message': f'Cleared {deleted_count} memories for user {user_id}.',
             'deleted_count': deleted_count
         })
-        
     except Exception as e:
-        logger.exception(f"Error clearing memory for user {get_user_id()}: {e}")
-        return jsonify({
-            'success': False,
-            'error': 'Failed to clear memory'
-        }), 500
+        logger.exception(f"Error clearing memory for user {await get_user_id(request)}: {e}")
+        raise HTTPException(status_code=500, detail='Failed to clear memory')
 
-@app.route('/memory_stats')
-def memory_stats_endpoint():
-    """Get memory statistics for the current user and overall."""
-    # Components are guaranteed to be initialized by @app.before_request
-    assert memory_manager is not None, "Memory Manager not initialized!"
-
+@app.get("/memory_stats")
+async def memory_stats_endpoint(request: Request):
+    if memory_manager is None:
+        logger.error("Memory Manager not initialized in /memory_stats route.")
+        raise HTTPException(status_code=503, detail='Memory services are not ready.')
     try:
-        user_id = get_user_id()
-        
+        user_id = await get_user_id(request)
         overall_stats = memory_manager.get_memory_stats()
         recent_memories = memory_manager.get_recent_memories(user_id, limit=5)
-        
         user_memory_count = overall_stats.get('memories_by_user', {}).get(user_id, 0)
         recent_activity_count = len(recent_memories)
-        return jsonify({
+        return JSONResponse({
             'success': True,
             'user_id': user_id,
             'user_memory_count': user_memory_count,
             'recent_memories': recent_memories,
             'recent_activity_count': recent_activity_count,
             'overall_stats': overall_stats,
-            'chat_history_length': len(get_chat_history()),
+            'chat_history_length': len(await get_chat_history(request)),
             'system_uptime': 'Online'
         })
-        
     except Exception as e:
-        logger.exception(f"Error getting memory stats for user {get_user_id()}: {e}")
-        return jsonify({
-            'success': False,
-            'error': 'Failed to get memory statistics'
-        }), 500
+        logger.exception(f"Error getting memory stats for user {await get_user_id(request)}: {e}")
+        raise HTTPException(status_code=500, detail='Failed to get memory statistics')
 
-@app.route('/health')
-def health_check():
-    """Health check endpoint to verify component status."""
-    # Components are guaranteed to be initialized by @app.before_request
-    assert llm_handler is not None and memory_manager is not None, "Mai components not initialized!"
-
+@app.get("/health")
+async def health_check(): 
     llm_status = False
     memory_status = False
+    voice_status = False
     memory_count = 0
     
+    if llm_handler is None or memory_manager is None or voice_interface is None:
+        raise HTTPException(
+            status_code=503,
+            detail={
+                'status': 'unhealthy',
+                'components': {
+                    'llm': 'uninitialized',
+                    'memory': 'uninitialized',
+                    'voice': 'uninitialized'
+                },
+                'message': 'Core components not yet initialized.',
+                'timestamp': datetime.now().isoformat()
+            }
+        )
+
     try:
-        llm_status = llm_handler.test_connection()
+        llm_status = await llm_handler.test_connection() 
         memory_stats_data = memory_manager.get_memory_stats()
         memory_status = memory_stats_data is not None and 'error' not in memory_stats_data
         memory_count = memory_stats_data.get('total_memories', 0) if memory_status else 0
+        voice_status = True 
 
     except Exception as e:
         logger.error(f"Exception during health check: {e}", exc_info=True)
-        # Status remains False if an exception occurs
 
-    overall_status = llm_status and memory_status
+    overall_status = llm_status and memory_status and voice_status
     
-    return jsonify({
+    return JSONResponse({
         'status': 'healthy' if overall_status else 'unhealthy',
         'components': {
             'llm': 'ok' if llm_status else 'error',
-            'memory': 'ok' if memory_status else 'error'
+            'memory': 'ok' if memory_status else 'error',
+            'voice': 'ok' if voice_status else 'error'
         },
         'memory_count': memory_count,
         'timestamp': datetime.now().isoformat()
-    }), 200 if overall_status else 503
+    }, status_code=200 if overall_status else 503)
 
-@app.route('/chat_history')
-def get_chat_history_endpoint():
-    """Get current chat history for the session."""
+@app.get("/chat_history")
+async def get_chat_history_endpoint(request: Request):
     try:
-        chat_history = get_chat_history()
-        return jsonify({
+        chat_history = await get_chat_history(request)
+        return JSONResponse({
             'success': True,
             'chat_history': chat_history,
             'count': len(chat_history)
         })
-        
     except Exception as e:
-        logger.exception(f"Error getting chat history for user {get_user_id()}: {e}")
-        return jsonify({
-            'success': False,
-            'error': 'Failed to retrieve chat history'
-        }), 500
+        logger.exception(f"Error getting chat history for user {await get_user_id(request)}: {e}")
+        raise HTTPException(status_code=500, detail='Failed to retrieve chat history')
 
-@app.errorhandler(404)
-def not_found(error):
-    """Handle 404 errors (Page Not Found)."""
-    logger.warning(f"404 Not Found: {request.path}")
-    return render_template('chat.html'), 404
+# --- Error Handlers ---
+@app.exception_handler(HTTPException)
+async def http_exception_handler(request: Request, exc: HTTPException):
+    logger.error(f"HTTP Exception: {exc.status_code} - {exc.detail}", exc_info=True if exc.status_code == 500 else False)
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={"success": False, "error": exc.detail},
+        headers=exc.headers
+    )
 
-@app.errorhandler(500)
-def internal_error(error):
-    """Handle 500 errors (Internal Server Error)."""
-    logger.exception(f"Internal server error: {error}")
-    return jsonify({
-        'success': False,
-        'error': 'Internal server error',
-        'message': 'Sorry, something went wrong on our end. Please try again later.'
-    }), 500
+@app.exception_handler(404)
+async def custom_404_handler(request: Request, exc: HTTPException):
+    logger.warning(f"404 Not Found: {request.url.path}")
+    return templates.TemplateResponse("chat.html", {"request": request}, status_code=404)
 
-if __name__ == '__main__':
-    # Determine API key for initialization
-    # Priority: Direct value in app.py -> Environment variable
-    final_api_key = TOGETHER_API_KEY_DIRECT
-    if not final_api_key:
-        final_api_key = os.getenv('TOGETHER_API_KEY')
-
-    # If no API key found, print error and exit early
-    if not final_api_key:
-        logger.critical("CRITICAL ERROR: TOGETHER_API_KEY is not set. "
-                        "Please set the environment variable or provide it directly in app.py.")
-        exit(1) # Exit immediately if API key is not available
-
-    # Set up environment for Flask app
-    port = int(os.getenv('PORT', 5000))
-    debug = os.getenv('FLASK_ENV') == 'development' # Flask's default debug behavior
-    
-    logger.info("Starting Mai - Emotionally Intelligent AI Assistant")
-    logger.info(f"Running on port {port}, debug mode: {debug}")
-    
-    try:
-        # IMPORTANT: If you prefer to initialize components *at startup* rather than
-        # on the first request (which is usually better for performance but means
-        # the app won't start if LLM/Memory fail), uncomment the line below.
-        # initialize_mai_components(api_key=final_api_key)
-
-        # Pass the determined API key to Flask's global context if needed by other parts,
-        # or ensure initialize_mai_components uses it during lazy init.
-        # For this setup, initialize_mai_components is called with final_api_key via before_request.
-        
-        # Run Flask app
-        app.run(
-            host='0.0.0.0',
-            port=port,
-            debug=debug,
-            threaded=True
-        )
-        
-    except Exception as e:
-        logger.critical(f"Failed to start application: {e}", exc_info=True)
-        exit(1)
+# To run this, save it as `main.py` (or `app.py`) and use uvicorn:
+# uvicorn app:app --host 0.0.0.0 --port 5000 --reload
