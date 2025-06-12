@@ -61,8 +61,8 @@ memory_manager: Optional[MemoryManager] = None
 
 # --- Configuration for API Key ---
 # Option 1: Provide API key directly here for development (LESS SECURE FOR PROD)
-# TOGETHER_API_KEY_DIRECT = "744909d3560953a8d2a7edf6e44ebbebf21eebe4c5b03a6191dc99ccce660004"
-TOGETHER_API_KEY_DIRECT = "744909d3560953a8d2a7edf6e44ebbebf21eebe4c5b03a6191dc99ccce660004" # Set to None to force environment variable or for deployment
+# TOGETHER_API_KEY_DIRECT = "YOUR-TOGETHER.AI-API"
+TOGETHER_API_KEY_DIRECT = None # Set to None to force environment variable or for deployment
 
 # Option 2: Will fall back to environment variable TOGETHER_API_KEY
 # if TOGETHER_API_KEY_DIRECT is None or not set.
