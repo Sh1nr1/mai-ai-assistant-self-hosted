@@ -1,7 +1,15 @@
-flask==2.3.3
-requests==2.31.0
-sentence-transformers==2.2.2
-chromadb==0.4.24
-torch>=1.12.1
-transformers==4.33.2
-uuid
+pyaudio
+numpy
+SpeechRecognition
+openai-whisper
+edge-tts
+pygame
+playsound
+fastapi
+uvicorn # Recommended for running FastAPI apps
+Jinja2
+python-multipart # For file uploads in FastAPI
+tenacity
+httpx
+sentence-transformers
+chromadb
