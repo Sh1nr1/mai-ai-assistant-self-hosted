@@ -240,9 +240,7 @@ Always respond as Mai with your unique personality. Keep responses conversationa
 if __name__ == "__main__":
     logger.info("Starting Mai LLM Handler test suite...")
 
-    # OPTION 1: Provide API key directly in code (for quick local testing)
-    # Be cautious with committing API keys directly to version control!
-    TOGETHER_API_KEY_DIRECT = "744909d3560953a8d2a7edf6e44ebbebf21eebe4c5b03a6191dc99ccce660004"
+
     llm = None # Initialize llm to None
 
     try:
