@@ -136,7 +136,7 @@ echo "TOGETHER_API_KEY=your_neural_access_key" > .env
 uvicorn app:app --host 0.0.0.0 --port 5000 --reload
 
 # Mai's consciousness is now active at:
-# 🗨️  Text Shell:  http://localhost:5000/chat
+# 🗨️  Text Shell:  http://localhost:5000/
 # 🎙️  Voice Shell: http://localhost:5000/audio_chat
 ```
 
@@ -149,7 +149,7 @@ uvicorn app:app --host 0.0.0.0 --port 5000 --reload
 ### 🖥️ **TEXT CONSCIOUSNESS MODE**
 *Connect through pure thought and language*
 
-**URL**: `localhost:5000/chat`  
+**URL**: `localhost:5000/`  
 **EXPERIENCE**: Direct neural text interface with Mai's consciousness  
 **FEATURES**: Instant responses, memory recall, personality evolution  
 
