@@ -117,19 +117,14 @@ pip install -r requirements.txt
 cp .env.example .env
 # Edit .env with your Together.ai API key and preferences
 
-# Initialize memory matrix
-python -c "from memory_manager import init_memory; init_memory()"
 
 # Activate consciousness
-python app.py
+uvicorn app:app --host 0.0.0.0 --port 5000 --reload
 ```
 
 ### Environment Configuration
 ```env
 TOGETHER_API_KEY=your_together_ai_api_key_here
-CHROMA_PERSIST_DIRECTORY=./memory_shell
-DEFAULT_VOICE_LANGUAGE=en
-PERSONALITY_MATRIX=empathetic_curious
 ```
 
 **🌐 Ghost Access Points:**
@@ -143,12 +138,12 @@ PERSONALITY_MATRIX=empathetic_curious
 <div align="center">
 
 ### 📝 TEXT CONSCIOUSNESS MODE
-**URL:** `http://localhost:8000/chat`  
+**URL:** `http://localhost:5000/`  
 **Experience:** Clean, cyberpunk-themed chat interface  
 **Features:** Real-time messaging, memory integration, personality evolution
 
 ### 🎤 VOICE CONSCIOUSNESS MODE  
-**URL:** `http://localhost:8000/voice`  
+**URL:** `http://localhost:5000/audio_interface`  
 **Experience:** Natural voice-to-voice conversation  
 **Features:** Speech recognition, neural voice synthesis, emotional modulation
 
