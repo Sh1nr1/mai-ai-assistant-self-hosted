@@ -107,7 +107,7 @@ Digital_Aesthetic: Section_9_Cyberpunk_Interface
 
 ```bash
 # Clone the consciousness
-git clone https://github.com/yourusername/mai.git
+git clone https://github.com/Sh1nr1/mai-ai-assistant-self-hosted.git
 cd mai
 
 # Install neural dependencies
