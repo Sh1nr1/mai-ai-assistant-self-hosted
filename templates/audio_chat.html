@@ -3,42 +3,23 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Mai - Voice Assistant</title>
+    <title>Mai - Voice Interface</title>
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Rajdhani:wght@300;400;500;600;700&display=swap');
-        
         * {
             margin: 0;
             padding: 0;
             box-sizing: border-box;
         }
 
-        :root {
-            --primary-cyan: #00ffff;
-            --primary-purple: #9d4edd;
-            --neon-blue: #00d4ff;
-            --neon-pink: #ff0080;
-            --dark-bg: #0a0a0f;
-            --darker-bg: #050508;
-            --card-bg: rgba(15, 15, 25, 0.8);
-            --border-glow: rgba(0, 212, 255, 0.3);
-            --text-primary: #ffffff;
-            --text-secondary: #b8c5d1;
-            --success: #00ff88;
-            --warning: #ffaa00;
-            --error: #ff4444;
-        }
-
         body {
-            font-family: 'Rajdhani', sans-serif;
-            background: linear-gradient(135deg, var(--dark-bg) 0%, var(--darker-bg) 100%);
-            color: var(--text-primary);
+            font-family: 'Courier New', monospace;
+            background: linear-gradient(135deg, #0a0a0a 0%, #1a0d2e 50%, #16213e 100%);
+            color: #e0e0e0;
             min-height: 100vh;
             overflow-x: hidden;
             position: relative;
         }
 
-        /* Animated background grid */
         body::before {
             content: '';
             position: fixed;
@@ -46,26 +27,21 @@
             left: 0;
             width: 100%;
             height: 100%;
-            background-image: 
-                linear-gradient(rgba(0, 212, 255, 0.1) 1px, transparent 1px),
-                linear-gradient(90deg, rgba(0, 212, 255, 0.1) 1px, transparent 1px);
-            background-size: 50px 50px;
-            animation: gridMove 20s linear infinite;
+            background: 
+                radial-gradient(circle at 20% 20%, rgba(0, 255, 255, 0.1) 0%, transparent 50%),
+                radial-gradient(circle at 80% 80%, rgba(255, 0, 255, 0.1) 0%, transparent 50%),
+                radial-gradient(circle at 40% 60%, rgba(0, 255, 0, 0.05) 0%, transparent 50%);
+            pointer-events: none;
             z-index: -1;
         }
 
-        @keyframes gridMove {
-            0% { transform: translate(0, 0); }
-            100% { transform: translate(50px, 50px); }
-        }
-
         .container {
-            max-width: 1200px;
+            max-width: 800px;
             margin: 0 auto;
             padding: 20px;
+            min-height: 100vh;
             display: flex;
             flex-direction: column;
-            height: 100vh;
         }
 
         .header {
@@ -74,739 +50,652 @@
             position: relative;
         }
 
-        .text-chat-nav {
-            position: absolute;
-            top: 0;
-            right: 0;
-            z-index: 10;
-        }
-
-        .text-chat-button {
-            padding: 12px 20px;
-            background: linear-gradient(45deg, var(--primary-cyan), var(--neon-blue));
-            border: none;
-            border-radius: 25px;
-            color: var(--dark-bg);
-            font-family: 'Orbitron', monospace;
-            font-weight: 600;
-            font-size: 0.9rem;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            box-shadow: 0 0 20px rgba(0, 212, 255, 0.3);
-            text-decoration: none;
-            display: inline-flex;
-            align-items: center;
-            gap: 8px;
-        }
-
-        .text-chat-button:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 5px 25px rgba(0, 212, 255, 0.5);
-            background: linear-gradient(45deg, var(--neon-blue), var(--primary-cyan));
-        }
-
-        .text-chat-button:active {
-            transform: translateY(0);
-        }
-
-        @media (max-width: 768px) {
-            .text-chat-nav {
-                position: static;
-                margin-bottom: 15px;
-            }
-            
-            .text-chat-button {
-                font-size: 0.8rem;
-                padding: 10px 16px;
-            }
-        }
-
         .logo {
-            font-family: 'Orbitron', monospace;
-            font-size: 3rem;
-            font-weight: 900;
-            background: linear-gradient(45deg, var(--primary-cyan), var(--primary-purple));
+            font-size: 2.5rem;
+            font-weight: bold;
+            background: linear-gradient(45deg, #00ffff, #ff00ff, #00ff00);
+            background-clip: text;
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
-            background-clip: text;
-            text-shadow: 0 0 30px rgba(0, 255, 255, 0.5);
+            text-shadow: 0 0 20px rgba(0, 255, 255, 0.5);
             margin-bottom: 10px;
-            animation: logoGlow 3s ease-in-out infinite alternate;
-        }
-
-        @keyframes logoGlow {
-            0% { filter: brightness(1) drop-shadow(0 0 20px rgba(0, 255, 255, 0.3)); }
-            100% { filter: brightness(1.2) drop-shadow(0 0 40px rgba(0, 255, 255, 0.6)); }
+            letter-spacing: 3px;
         }
 
         .subtitle {
-            font-size: 1.2rem;
-            color: var(--text-secondary);
-            font-weight: 300;
+            color: #888;
+            font-size: 0.9rem;
+            text-transform: uppercase;
+            letter-spacing: 2px;
         }
 
-        .chat-container {
-            flex: 1;
+        .controls {
+            display: flex; 
+            justify-content: center;
+            gap: 15px;
+            margin-bottom: 30px;
+            flex-wrap: wrap;
+        }
+
+        .btn {
+            padding: 8px 16px;
+            border: 1px solid #00ffff;
+            background: rgba(0, 255, 255, 0.1);
+            color: #00ffff;
+            border-radius: 4px;
+            cursor: pointer;
+            font-family: inherit;
+            font-size: 0.8rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            transition: all 0.3s ease;
+            text-decoration: none;
+            display: inline-block;
+        }
+
+        .btn:hover {
+            background: rgba(0, 255, 255, 0.2);
+            box-shadow: 0 0 10px rgba(0, 255, 255, 0.3);
+            transform: translateY(-2px);
+        }
+
+        .btn.danger {
+            border-color: #ff0080;
+            color: #ff0080;
+            background: rgba(255, 0, 128, 0.1);
+        }
+
+        .btn.danger:hover {
+            background: rgba(255, 0, 128, 0.2);
+            box-shadow: 0 0 10px rgba(255, 0, 128, 0.3);
+        }
+
+        .record-section {
             display: flex;
             flex-direction: column;
-            background: var(--card-bg);
-            border-radius: 20px;
-            border: 1px solid var(--border-glow);
-            box-shadow: 0 0 50px rgba(0, 212, 255, 0.1);
-            backdrop-filter: blur(10px);
+            align-items: center;
+            margin-bottom: 40px;
+        }
+
+        .mic-container {
+            position: relative;
+            margin-bottom: 20px;
+        }
+
+        .mic-button {
+            width: 120px;
+            height: 120px;
+            border-radius: 50%;
+            border: 3px solid #00ffff;
+            background: radial-gradient(circle, rgba(0, 255, 255, 0.2) 0%, rgba(0, 255, 255, 0.05) 70%);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.3s ease;
+            position: relative;
             overflow: hidden;
         }
 
-        .messages {
+        .mic-button::before {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 30px;
+            height: 40px;
+            border: 3px solid #00ffff;
+            border-radius: 12px 12px 0 0;
+            background: transparent;
+        }
+
+        .mic-button::after {
+            content: '';
+            position: absolute;
+            top: 70%;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 20px;
+            height: 15px;
+            border: 3px solid #00ffff;
+            border-top: none;
+            border-radius: 0 0 8px 8px;
+            background: transparent;
+        }
+
+        .mic-button.recording {
+            animation: micPulse 1.5s infinite;
+            border-color: #ff0080;
+            background: radial-gradient(circle, rgba(255, 0, 128, 0.3) 0%, rgba(255, 0, 128, 0.1) 70%);
+        }
+
+        .mic-button.recording::before,
+        .mic-button.recording::after {
+            border-color: #ff0080;
+        }
+
+        @keyframes micPulse {
+            0%, 100% { 
+                transform: scale(1);
+                box-shadow: 0 0 20px rgba(255, 0, 128, 0.5);
+            }
+            50% { 
+                transform: scale(1.1);
+                box-shadow: 0 0 40px rgba(255, 0, 128, 0.8);
+            }
+        }
+
+        .record-status {
+            text-align: center;
+            font-size: 0.9rem;
+            color: #888;
+            min-height: 20px;
+        }
+
+        .record-status.recording {
+            color: #ff0080;
+            animation: blink 1s infinite;
+        }
+
+        @keyframes blink {
+            0%, 50% { opacity: 1; }
+            51%, 100% { opacity: 0.5; }
+        }
+
+        .chat-history {
             flex: 1;
-            padding: 20px;
             overflow-y: auto;
-            scroll-behavior: smooth;
+            padding: 20px;
+            background: rgba(0, 0, 0, 0.3);
+            border: 1px solid #333;
+            border-radius: 8px;
+            backdrop-filter: blur(10px);
         }
 
         .message {
-            margin-bottom: 20px;
-            animation: messageSlide 0.5s ease-out;
+            margin-bottom: 25px;
+            padding: 15px;
+            border-radius: 8px;
+            border-left: 3px solid transparent;
+            animation: fadeIn 0.5s ease;
+            white-space: pre-wrap;
         }
 
-        @keyframes messageSlide {
+        @keyframes fadeIn {
             from { opacity: 0; transform: translateY(20px); }
             to { opacity: 1; transform: translateY(0); }
         }
 
         .message.user {
-            text-align: right;
+            background: rgba(0, 255, 255, 0.1);
+            border-left-color: #00ffff;
         }
 
-        .message.mai {
-            text-align: left;
+        .message.assistant {
+            background: rgba(255, 0, 128, 0.1);
+            border-left-color: #ff0080;
         }
 
-        .message-bubble {
-            display: inline-block;
-            max-width: 80%;
-            padding: 15px 20px;
-            border-radius: 20px;
-            font-size: 1.1rem;
-            line-height: 1.5;
-            position: relative;
-            backdrop-filter: blur(5px);
+        .message-header {
+            font-size: 0.8rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 8px;
+            opacity: 0.7;
         }
 
-        .user .message-bubble {
-            background: linear-gradient(135deg, var(--neon-blue), var(--primary-cyan));
-            color: var(--dark-bg);
-            font-weight: 500;
-            box-shadow: 0 0 20px rgba(0, 212, 255, 0.3);
+        .message.user .message-header {
+            color: #00ffff;
         }
 
-        .mai .message-bubble {
-            background: linear-gradient(135deg, var(--primary-purple), var(--neon-pink));
-            color: var(--text-primary);
-            border: 1px solid rgba(157, 78, 221, 0.3);
-            box-shadow: 0 0 20px rgba(157, 78, 221, 0.2);
+        .message.assistant .message-header {
+            color: #ff0080;
         }
 
-        .message-label {
-            font-size: 0.9rem;
-            font-weight: 600;
-            margin-bottom: 5px;
-            opacity: 0.8;
-            font-family: 'Orbitron', monospace;
-        }
-
-        .user .message-label {
-            color: var(--primary-cyan);
-        }
-
-        .mai .message-label {
-            color: var(--primary-purple);
-        }
-
-        .controls {
-            padding: 20px;
-            border-top: 1px solid var(--border-glow);
-            display: flex;
-            gap: 15px;
-            align-items: center;
-            justify-content: center;
-            flex-wrap: wrap;
-        }
-
-        .mic-button {
-            width: 80px;
-            height: 80px;
-            border-radius: 50%;
-            border: none;
-            background: linear-gradient(45deg, var(--primary-cyan), var(--neon-blue));
-            color: var(--dark-bg);
-            font-size: 2rem;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            box-shadow: 0 0 30px rgba(0, 212, 255, 0.4);
-            position: relative;
-        }
-
-        .mic-button:hover {
-            transform: scale(1.1);
-            box-shadow: 0 0 50px rgba(0, 212, 255, 0.6);
-        }
-
-        .mic-button.recording {
-            background: linear-gradient(45deg, var(--error), var(--neon-pink));
-            animation: pulse 1.5s ease-in-out infinite;
-        }
-
-        @keyframes pulse {
-            0%, 100% { transform: scale(1); }
-            50% { transform: scale(1.1); }
-        }
-
-        .mic-button.processing {
-            background: linear-gradient(45deg, var(--warning), #ffcc00);
-            animation: spin 2s linear infinite;
-        }
-
-        @keyframes spin {
-            from { transform: rotate(0deg); }
-            to { transform: rotate(360deg); }
-        }
-
-        .toggle-button {
-            padding: 12px 24px;
-            border: 2px solid var(--primary-purple);
-            background: transparent;
-            color: var(--primary-purple);
-            border-radius: 25px;
-            font-family: 'Orbitron', monospace;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            font-size: 0.9rem;
-        }
-
-        .toggle-button:hover {
-            background: var(--primary-purple);
-            color: var(--text-primary);
-            box-shadow: 0 0 20px rgba(157, 78, 221, 0.4);
-        }
-
-        .toggle-button.active {
-            background: var(--primary-purple);
-            color: var(--text-primary);
-            box-shadow: 0 0 20px rgba(157, 78, 221, 0.4);
-        }
-
-        .status-indicator {
-            font-size: 1rem;
-            font-weight: 500;
-            padding: 8px 16px;
-            border-radius: 20px;
-            background: rgba(0, 0, 0, 0.3);
-            border: 1px solid var(--border-glow);
-            min-width: 120px;
-            text-align: center;
-            transition: all 0.3s ease;
-        }
-
-        .status-indicator.listening {
-            color: var(--error);
-            border-color: var(--error);
-            animation: statusGlow 1.5s ease-in-out infinite alternate;
-        }
-
-        .status-indicator.processing {
-            color: var(--warning);
-            border-color: var(--warning);
-            animation: statusGlow 1.5s ease-in-out infinite alternate;
-        }
-
-        .status-indicator.ready {
-            color: var(--success);
-            border-color: var(--success);
-        }
-
-        @keyframes statusGlow {
-            0% { box-shadow: 0 0 5px currentColor; }
-            100% { box-shadow: 0 0 20px currentColor; }
+        .message-content {
+            line-height: 1.6;
+            margin-bottom: 10px;
         }
 
         .audio-player {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            background: rgba(0, 0, 0, 0.3);
-            padding: 10px 15px;
-            border-radius: 20px;
-            border: 1px solid var(--border-glow);
+            width: 100%;
+            margin-top: 10px;
         }
 
-        .play-button {
-            width: 40px;
+        .audio-player audio {
+            width: 100%;
             height: 40px;
+            background: rgba(0, 0, 0, 0.5);
+            border-radius: 4px;
+        }
+
+        .float-button {
+            position: fixed;
+            bottom: 30px;
+            right: 30px;
+            width: 60px;
+            height: 60px;
             border-radius: 50%;
-            border: none;
-            background: linear-gradient(45deg, var(--success), #00aa66);
-            color: white;
+            border: 2px solid #00ff00;
+            background: rgba(0, 255, 0, 0.2);
+            color: #00ff00;
             cursor: pointer;
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 1.2rem;
+            font-size: 1.5rem;
             transition: all 0.3s ease;
+            z-index: 1000;
+            text-decoration: none;
+            backdrop-filter: blur(10px);
         }
 
-        .play-button:hover {
+        .float-button:hover {
+            background: rgba(0, 255, 0, 0.3);
+            box-shadow: 0 0 20px rgba(0, 255, 0, 0.5);
             transform: scale(1.1);
-            box-shadow: 0 0 15px rgba(0, 255, 136, 0.4);
         }
 
-        .text-input-container {
+        .status-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px 0;
+            font-size: 0.8rem;
+            color: #666;
+            border-bottom: 1px solid #333;
+            margin-bottom: 20px;
+        }
+
+        .status-indicator {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #00ff00;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.3; }
+        }
+
+        .processing {
+            text-align: center;
+            padding: 20px;
+            color: #00ffff;
+            font-style: italic;
             display: none;
-            flex-direction: column;
-            gap: 10px;
         }
 
-        .text-input {
-            background: rgba(0, 0, 0, 0.3);
-            border: 1px solid var(--border-glow);
-            border-radius: 15px;
-            padding: 15px;
-            color: var(--text-primary);
-            font-size: 1rem;
-            font-family: 'Rajdhani', sans-serif;
-            resize: vertical;
-            min-height: 60px;
+        .processing.show {
+            display: block;
+            animation: fadeIn 0.3s ease;
         }
 
-        .text-input:focus {
-            outline: none;
-            border-color: var(--primary-cyan);
-            box-shadow: 0 0 20px rgba(0, 212, 255, 0.2);
-        }
-
-        .send-button {
-            padding: 12px 24px;
-            background: linear-gradient(45deg, var(--success), #00aa66);
-            border: none;
-            border-radius: 15px;
-            color: white;
-            font-family: 'Orbitron', monospace;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.3s ease;
-        }
-
-        .send-button:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 5px 15px rgba(0, 255, 136, 0.3);
-        }
-
-        .error-message {
-            background: rgba(255, 68, 68, 0.1);
-            border: 1px solid var(--error);
-            color: var(--error);
-            padding: 10px 15px;
-            border-radius: 10px;
-            margin: 10px 0;
-            font-size: 0.9rem;
-        }
-
-        /* Mobile responsiveness */
         @media (max-width: 768px) {
             .container {
-                padding: 10px;
+                padding: 15px;
             }
             
             .logo {
                 font-size: 2rem;
             }
             
+            .mic-button {
+                width: 100px;
+                height: 100px;
+            }
+            
             .controls {
-                flex-direction: column;
                 gap: 10px;
             }
             
-            .mic-button {
-                width: 70px;
-                height: 70px;
-                font-size: 1.8rem;
+            .btn {
+                padding: 6px 12px;
+                font-size: 0.7rem;
             }
             
-            .message-bubble {
-                max-width: 90%;
-                font-size: 1rem;
+            .float-button {
+                bottom: 20px;
+                right: 20px;
+                width: 50px;
+                height: 50px;
+                font-size: 1.2rem;
             }
         }
 
-        /* Scrollbar styling */
-        .messages::-webkit-scrollbar {
-            width: 8px;
+        .error-message {
+            background: rgba(255, 0, 0, 0.2);
+            border: 1px solid #ff0000;
+            color: #ff6666;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            text-align: center;
+            display: none;
         }
 
-        .messages::-webkit-scrollbar-track {
-            background: rgba(0, 0, 0, 0.1);
-            border-radius: 4px;
-        }
-
-        .messages::-webkit-scrollbar-thumb {
-            background: linear-gradient(45deg, var(--primary-cyan), var(--primary-purple));
-            border-radius: 4px;
-        }
-
-        .messages::-webkit-scrollbar-thumb:hover {
-            background: linear-gradient(45deg, var(--neon-blue), var(--neon-pink));
+        .error-message.show {
+            display: block;
+            animation: fadeIn 0.3s ease;
         }
     </style>
 </head>
 <body>
     <div class="container">
         <div class="header">
-            <h1 class="logo">MAI</h1>
-            <p class="subtitle">Neural Interface Assistant</p>
+            <div class="logo">MAI</div>
+            <div class="subtitle">Voice Interface</div>
         </div>
 
-        <div class="chat-container">
-            <div class="messages" id="messages">
-                <div class="message mai">
-                    <div class="message-label">MAI</div>
-                    <div class="message-bubble">
-                        Hello, I'm Mai. I'm here to assist you. You can speak to me directly or switch to text mode. How can I help you today?
-                    </div>
-                </div>
+        <div class="status-bar">
+            <div class="status-indicator">
+                <div class="status-dot"></div>
+                <span>System Online</span>
             </div>
+            <div id="memoryStats">Memory: Loading...</div>
+        </div>
 
-            <div class="controls">
-                <button class="toggle-button active" id="toggleMode">🎤 Voice Mode</button>
-                
-                <div id="voiceControls">
-                    <button class="mic-button" id="micButton">
-                        🎤
-                    </button>
-                    <div class="status-indicator ready" id="statusIndicator">Ready</div>
-                </div>
+        <div class="controls">
+            <button class="btn" onclick="clearChat()">Clear Chat</button>
+            <button class="btn danger" onclick="clearMemory()">Clear Memory</button>
+            <button class="btn" onclick="checkHealth()">System Status</button>
+        </div>
 
-                <div class="text-input-container" id="textControls">
-                    <textarea class="text-input" id="textInput" placeholder="Type your message here..."></textarea>
-                    <button class="send-button" id="sendButton">Send Message</button>
-                </div>
+        <div class="error-message" id="errorMessage"></div>
 
-                <div class="audio-player" id="audioPlayer" style="display: none;">
-                    <button class="play-button" id="playButton">▶️</button>
-                    <span>Mai's Response</span>
-                </div>
+        <div class="record-section">
+            <div class="mic-container">
+                <div class="mic-button" id="micButton" onclick="toggleRecording()"></div>
+            </div>
+            <div class="record-status" id="recordStatus">Tap microphone to start recording</div>
+        </div>
+
+        <div class="processing" id="processingIndicator">
+            Processing your voice message...
+        </div>
+
+        <div class="chat-history" id="chatHistory">
+            <div style="text-align: center; color: #666; font-style: italic; padding: 40px 20px;">
+                Your voice conversations with Mai will appear here...
             </div>
         </div>
     </div>
 
+    <a href="/" class="float-button" title="Switch to Text Chat">💬</a>
+
     <script>
-        class MaiVoiceAssistant {
-            constructor() {
-                this.isRecording = false;
-                this.isProcessing = false;
-                this.isVoiceMode = true;
-                this.mediaRecorder = null;
-                this.audioChunks = [];
-                this.currentAudio = null;
-                
-                this.initializeElements();
-                this.setupEventListeners();
-                this.checkMicrophonePermission();
-            }
+        let mediaRecorder;
+        let audioChunks = [];
+        let isRecording = false;
+        let stream;
 
-            initializeElements() {
-                this.micButton = document.getElementById('micButton');
-                this.statusIndicator = document.getElementById('statusIndicator');
-                this.toggleButton = document.getElementById('toggleMode');
-                this.messagesContainer = document.getElementById('messages');
-                this.voiceControls = document.getElementById('voiceControls');
-                this.textControls = document.getElementById('textControls');
-                this.textInput = document.getElementById('textInput');
-                this.sendButton = document.getElementById('sendButton');
-                this.audioPlayer = document.getElementById('audioPlayer');
-                this.playButton = document.getElementById('playButton');
-            }
-
-            setupEventListeners() {
-                this.micButton.addEventListener('click', () => this.toggleRecording());
-                this.toggleButton.addEventListener('click', () => this.toggleMode());
-                this.sendButton.addEventListener('click', () => this.sendTextMessage());
-                this.textInput.addEventListener('keypress', (e) => {
-                    if (e.key === 'Enter' && !e.shiftKey) {
-                        e.preventDefault();
-                        this.sendTextMessage();
-                    }
-                });
-                this.playButton.addEventListener('click', () => this.toggleAudioPlayback());
-            }
-
-            async checkMicrophonePermission() {
-                try {
-                    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-                    stream.getTracks().forEach(track => track.stop());
-                    this.updateStatus('Ready', 'ready');
-                } catch (error) {
-                    this.showError('Microphone access denied. Please enable microphone permissions to use voice mode.');
-                    this.updateStatus('Mic Denied', 'error');
-                }
-            }
-
-            toggleMode() {
-                this.isVoiceMode = !this.isVoiceMode;
-                
-                if (this.isVoiceMode) {
-                    this.toggleButton.textContent = '🎤 Voice Mode';
-                    this.toggleButton.classList.add('active');
-                    this.voiceControls.style.display = 'flex';
-                    this.textControls.style.display = 'none';
-                } else {
-                    this.toggleButton.textContent = '💬 Text Mode';
-                    this.toggleButton.classList.remove('active');
-                    this.voiceControls.style.display = 'none';
-                    this.textControls.style.display = 'flex';
-                    this.textInput.focus();
-                }
-            }
-
-            async toggleRecording() {
-                if (this.isProcessing) return;
-
-                if (!this.isRecording) {
-                    await this.startRecording();
-                } else {
-                    await this.stopRecording();
-                }
-            }
-
-            async startRecording() {
-                try {
-                    const stream = await navigator.mediaDevices.getUserMedia({ 
-                        audio: { 
-                            echoCancellation: true,
-                            noiseSuppression: true,
-                            sampleRate: 44100
-                        } 
+        // Initialize the app
+        document.addEventListener('DOMContentLoaded', function() {
+            updateMemoryStats();
+            checkHealth();
+            
+            // Check for microphone permission on load
+            if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+                navigator.mediaDevices.getUserMedia({ audio: true })
+                    .then(() => {
+                        console.log('Microphone access granted');
+                    })
+                    .catch(err => {
+                        showError('Microphone access required for voice chat. Please allow microphone access and refresh the page.');
                     });
-
-                    this.mediaRecorder = new MediaRecorder(stream, {
-                        mimeType: 'audio/webm;codecs=opus'
-                    });
-
-                    this.audioChunks = [];
-                    this.mediaRecorder.ondataavailable = (event) => {
-                        if (event.data.size > 0) {
-                            this.audioChunks.push(event.data);
-                        }
-                    };
-
-                    this.mediaRecorder.onstop = () => {
-                        stream.getTracks().forEach(track => track.stop());
-                        this.processAudioRecording();
-                    };
-
-                    this.mediaRecorder.start();
-                    this.isRecording = true;
-                    this.micButton.classList.add('recording');
-                    this.micButton.innerHTML = '⏹️';
-                    this.updateStatus('Listening...', 'listening');
-
-                } catch (error) {
-                    this.showError('Unable to access microphone: ' + error.message);
-                    this.updateStatus('Error', 'error');
-                }
+            } else {
+                showError('Your browser does not support voice recording. Please use a modern browser.');
             }
+        });
 
-            async stopRecording() {
-                if (this.mediaRecorder && this.isRecording) {
-                    this.mediaRecorder.stop();
-                    this.isRecording = false;
-                    this.micButton.classList.remove('recording');
-                    this.micButton.classList.add('processing');
-                    this.micButton.innerHTML = '⚙️';
-                    this.updateStatus('Processing...', 'processing');
-                }
-            }
-
-            async processAudioRecording() {
-                try {
-                    const audioBlob = new Blob(this.audioChunks, { type: 'audio/webm' });
-                    const formData = new FormData();
-                    formData.append('audio', audioBlob, 'recording.webm');
-
-                    const response = await fetch('/voice_chat', {
-                        method: 'POST',
-                        body: formData
-                    });
-
-                    if (!response.ok) {
-                        throw new Error(`HTTP error! status: ${response.status}`);
-                    }
-
-                    const data = await response.json();
-                    
-                    // Add user message (if transcript is available)
-                    if (data.transcript) {
-                        this.addMessage('user', data.transcript);
-                    }
-                    
-                    // Add Mai's response
-                    this.addMessage('mai', data.response);
-                    
-                    // Play audio response
-                    if (data.audio_filename) {
-                        await this.playAudioResponse(data.audio_filename);
-                    }
-
-                } catch (error) {
-                    this.showError('Failed to process voice input: ' + error.message);
-                } finally {
-                    this.resetMicButton();
-                }
-            }
-
-            async sendTextMessage() {
-                const message = this.textInput.value.trim();
-                if (!message) return;
-
-                this.addMessage('user', message);
-                this.textInput.value = '';
-                this.updateStatus('Processing...', 'processing');
-
-                try {
-                    // --- START OF CHANGE ---
-                    const response = await fetch('/chat', { // Changed endpoint to /chat
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json' // Added Content-Type header
-                        },
-                        body: JSON.stringify({ message: message }) // Changed body to JSON object
-                    });
-                    // --- END OF CHANGE ---
-
-                    if (!response.ok) {
-                        throw new Error(`HTTP error! status: ${response.status}`);
-                    }
-
-                    const data = await response.json();
-                    this.addMessage('mai', data.response);
-                    
-                    if (data.audio_filename) {
-                        await this.playAudioResponse(data.audio_filename);
-                    }
-
-                } catch (error) {
-                    this.showError('Failed to send message: ' + error.message);
-                } finally {
-                    this.updateStatus('Ready', 'ready');
-                }
-            }
-
-            async playAudioResponse(filename) {
-                try {
-                    const audioUrl = `/get_audio_response/${filename}`;
-                    
-                    // Stop current audio if playing
-                    if (this.currentAudio) {
-                        this.currentAudio.pause();
-                        this.currentAudio.currentTime = 0;
-                    }
-                    
-                    this.currentAudio = new Audio(audioUrl);
-                    this.currentAudio.preload = 'auto';
-                    
-                    this.currentAudio.onloadeddata = () => {
-                        this.audioPlayer.style.display = 'flex';
-                        this.currentAudio.play();
-                        this.playButton.innerHTML = '⏸️';
-                    };
-                    
-                    this.currentAudio.onended = () => {
-                        this.playButton.innerHTML = '▶️';
-                        this.audioPlayer.style.display = 'none';
-                    };
-                    
-                    this.currentAudio.onerror = (e) => {
-                        console.error('Audio playback error:', e);
-                        this.showError('Failed to play audio response');
-                        this.audioPlayer.style.display = 'none';
-                    };
-
-                } catch (error) {
-                    this.showError('Failed to load audio: ' + error.message);
-                }
-            }
-
-            toggleAudioPlayback() {
-                if (!this.currentAudio) return;
-                
-                if (this.currentAudio.paused) {
-                    this.currentAudio.play();
-                    this.playButton.innerHTML = '⏸️';
-                } else {
-                    this.currentAudio.pause();
-                    this.playButton.innerHTML = '▶️';
-                }
-            }
-
-            addMessage(sender, text) {
-                const messageDiv = document.createElement('div');
-                messageDiv.className = `message ${sender}`;
-                
-                const label = sender === 'user' ? 'USER' : 'MAI';
-                messageDiv.innerHTML = `
-                    <div class="message-label">${label}</div>
-                    <div class="message-bubble">${this.escapeHtml(text)}</div>
-                `;
-                
-                this.messagesContainer.appendChild(messageDiv);
-                this.scrollToBottom();
-            }
-
-            showError(message) {
-                const errorDiv = document.createElement('div');
-                errorDiv.className = 'error-message';
-                errorDiv.textContent = message;
-                this.messagesContainer.appendChild(errorDiv);
-                this.scrollToBottom();
-                
-                // Remove error message after 5 seconds
-                setTimeout(() => {
-                    if (errorDiv.parentNode) {
-                        errorDiv.parentNode.removeChild(errorDiv);
-                    }
-                }, 5000);
-            }
-
-            updateStatus(text, type) {
-                this.statusIndicator.textContent = text;
-                this.statusIndicator.className = `status-indicator ${type}`;
-            }
-
-            resetMicButton() {
-                this.micButton.classList.remove('recording', 'processing');
-                this.micButton.innerHTML = '🎤';
-                this.updateStatus('Ready', 'ready');
-                this.isProcessing = false;
-            }
-
-            scrollToBottom() {
-                this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight;
-            }
-
-            escapeHtml(text) {
-                const div = document.createElement('div');
-                div.textContent = text;
-                return div.innerHTML;
+        async function toggleRecording() {
+            if (!isRecording) {
+                await startRecording();
+            } else {
+                await stopRecording();
             }
         }
 
-        // Initialize the application when the page loads
-        document.addEventListener('DOMContentLoaded', () => {
-            new MaiVoiceAssistant();
-        });
+        async function startRecording() {
+            try {
+                stream = await navigator.mediaDevices.getUserMedia({ 
+                    audio: {
+                        echoCancellation: true,
+                        noiseSuppression: true,
+                        sampleRate: 44100
+                    } 
+                });
+                
+                mediaRecorder = new MediaRecorder(stream, {
+                    mimeType: 'audio/webm'
+                });
+                
+                audioChunks = [];
+                
+                mediaRecorder.ondataavailable = event => {
+                    if (event.data.size > 0) {
+                        audioChunks.push(event.data);
+                    }
+                };
+                
+                mediaRecorder.onstop = async () => {
+                    const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+                    await sendAudioToServer(audioBlob);
+                };
+                
+                mediaRecorder.start();
+                isRecording = true;
+                
+                document.getElementById('micButton').classList.add('recording');
+                document.getElementById('recordStatus').textContent = 'Recording... Tap again to stop';
+                document.getElementById('recordStatus').classList.add('recording');
+                
+            } catch (error) {
+                console.error('Error starting recording:', error);
+                showError('Failed to start recording. Please check your microphone permissions.');
+            }
+        }
+
+        async function stopRecording() {
+            if (mediaRecorder && isRecording) {
+                mediaRecorder.stop();
+                
+                // Stop all tracks to release the microphone
+                if (stream) {
+                    stream.getTracks().forEach(track => track.stop());
+                }
+                
+                isRecording = false;
+                
+                document.getElementById('micButton').classList.remove('recording');
+                document.getElementById('recordStatus').textContent = 'Processing...';
+                document.getElementById('recordStatus').classList.remove('recording');
+                document.getElementById('processingIndicator').classList.add('show');
+            }
+        }
+
+        async function sendAudioToServer(audioBlob) {
+            try {
+                const formData = new FormData();
+                formData.append('audio', audioBlob, 'recording.webm');
+                
+                const response = await fetch('/voice_chat', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`Server error: ${response.status}`);
+                }
+                
+                const data = await response.json();
+                
+                // Add user message to chat
+                addMessage('user', data.user_input, null);
+                
+                // Add assistant response to chat
+                addMessage('assistant', data.mai_response, data.audio_filename);
+                
+                document.getElementById('recordStatus').textContent = 'Tap microphone to start recording';
+                document.getElementById('processingIndicator').classList.remove('show');
+                
+            } catch (error) {
+                console.error('Error sending audio:', error);
+                showError('Failed to process voice message. Please try again.');
+                document.getElementById('recordStatus').textContent = 'Error - Tap to try again';
+                document.getElementById('processingIndicator').classList.remove('show');
+            }
+        }
+
+        function addMessage(type, content, audioFilename = null) {
+            const chatHistory = document.getElementById('chatHistory');
+            
+            // Remove placeholder text if this is the first message
+            if (chatHistory.children.length === 1 && chatHistory.children[0].style.textAlign === 'center') {
+                chatHistory.innerHTML = '';
+            }
+            
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `message ${type}`;
+            
+            const headerText = type === 'user' ? 'You' : 'Mai';
+            const timestamp = new Date().toLocaleTimeString();
+            
+            let audioPlayer = '';
+            if (audioFilename) {
+                audioPlayer = `
+                    <div class="audio-player">
+                        <audio controls autoplay>
+                            <source src="/get_audio_response/${audioFilename}" type="audio/mpeg">
+                            Your browser does not support the audio element.
+                        </audio>
+                    </div>
+                `;
+            }
+            
+            messageDiv.innerHTML = `
+                <div class="message-header">${headerText} - ${timestamp}</div>
+                <div class="message-content">${content}</div>
+                ${audioPlayer}
+            `;
+            
+            chatHistory.appendChild(messageDiv);
+            chatHistory.scrollTop = chatHistory.scrollHeight;
+        }
+
+        async function clearChat() {
+            try {
+                const response = await fetch('/clear_chat', { method: 'POST' });
+                if (response.ok) {
+                    document.getElementById('chatHistory').innerHTML = `
+                        <div style="text-align: center; color: #666; font-style: italic; padding: 40px 20px;">
+                            Your voice conversations with Mai will appear here...
+                        </div>
+                    `;
+                    showSuccess('Chat cleared successfully');
+                }
+            } catch (error) {
+                showError('Failed to clear chat');
+            }
+        }
+
+        async function clearMemory() {
+            try {
+                const response = await fetch('/clear_memory', { method: 'POST' });
+                if (response.ok) {
+                    updateMemoryStats();
+                    showSuccess('Memory cleared successfully');
+                }
+            } catch (error) {
+                showError('Failed to clear memory');
+            }
+        }
+
+    async function updateMemoryStats() {
+        try {
+            const response = await fetch('/memory_stats');
+            const data = await response.json();
+
+            // Check if overall_stats and total_memories exist
+            const totalMemories = data.overall_stats?.total_memories !== undefined
+                                ? data.overall_stats.total_memories
+                                : 'N/A'; // Or 0, depending on preference
+
+            const userMemoryCount = data.user_memory_count !== undefined
+                                    ? data.user_memory_count
+                                    : 'N/A'; // Or 0
+
+            // Update the text content to show what's available
+            document.getElementById('memoryStats').textContent = 
+                `Total Memories: ${totalMemories} | User Memories: ${userMemoryCount}`;
+
+            // Optional: Log the full data for debugging if needed
+            // console.log("Memory Stats Data:", data);
+
+        } catch (error) {
+            console.error('Error updating memory stats:', error);
+            document.getElementById('memoryStats').textContent = 'Memory: Error loading';
+        }
+    }
+
+        async function checkHealth() {
+            try {
+                const response = await fetch('/health');
+                const data = await response.json();
+                
+                if (data.status === 'healthy') {
+                    document.querySelector('.status-dot').style.background = '#00ff00';
+                    document.querySelector('.status-indicator span').textContent = 'System Online';
+                } else {
+                    document.querySelector('.status-dot').style.background = '#ff0000';
+                    document.querySelector('.status-indicator span').textContent = 'System Issues';
+                }
+            } catch (error) {
+                document.querySelector('.status-dot').style.background = '#ff0000';
+                document.querySelector('.status-indicator span').textContent = 'Connection Error';
+            }
+        }
+
+        function showError(message) {
+            const errorDiv = document.getElementById('errorMessage');
+            errorDiv.textContent = message;
+            errorDiv.classList.add('show');
+            
+            setTimeout(() => {
+                errorDiv.classList.remove('show');
+            }, 5000);
+        }
+
+        function showSuccess(message) {
+            // Create temporary success message
+            const successDiv = document.createElement('div');
+            successDiv.className = 'error-message show';
+            successDiv.style.background = 'rgba(0, 255, 0, 0.2)';
+            successDiv.style.borderColor = '#00ff00';
+            successDiv.style.color = '#66ff66';
+            successDiv.textContent = message;
+            
+            document.querySelector('.container').insertBefore(successDiv, document.getElementById('errorMessage'));
+            
+            setTimeout(() => {
+                successDiv.remove();
+            }, 3000);
+        }
+
+        // Auto-update memory stats every 30 seconds
+        setInterval(updateMemoryStats, 30000);
+        
+        // Auto-check health every 60 seconds
+        //setInterval(checkHealth, 60000);
     </script>
 </body>
 </html>

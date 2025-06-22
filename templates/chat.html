@@ -3,693 +3,748 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MAI - Neural Interface Protocol</title>
+    <title>Mai - Neural Interface</title>
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;700;900&family=JetBrains+Mono:wght@300;400;500&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Rajdhani:wght@300;400;500;700&display=swap');
         
         * {
             margin: 0;
             padding: 0;
             box-sizing: border-box;
         }
-
+        
         :root {
-            --primary-cyan: #00ffff;
-            --secondary-cyan: #0080ff;
-            --accent-purple: #8a2be2;
-            --neon-green: #39ff14;
-            --warning-orange: #ff6b35;
-            --error-red: #ff073a;
-            --bg-primary: #0a0a0f;
-            --bg-secondary: #1a1a2e;
-            --bg-tertiary: #16213e;
-            --text-primary: #e0e0e0;
-            --text-secondary: #a0a0a0;
-            --text-accent: #00ffff;
-            --border-color: #2a3a5a;
-            --glass-bg: rgba(26, 26, 46, 0.8);
+            --primary-cyan: #00f5ff;
+            --primary-magenta: #ff00ff;
+            --primary-purple: #8a2be2;
+            --neon-blue: #0066ff;
+            --neon-pink: #ff0080;
+            --bg-dark: #0a0a0f;
+            --bg-darker: #050508;
+            --glass-bg: rgba(255, 255, 255, 0.05);
+            --glass-border: rgba(0, 245, 255, 0.2);
+            --text-primary: #ffffff;
+            --text-secondary: #b0b0b0;
+            --success: #00ff88;
+            --warning: #ffaa00;
+            --error: #ff3366;
         }
-
+        
         body {
-            font-family: 'JetBrains Mono', monospace;
-            background: 
-                radial-gradient(circle at 20% 80%, rgba(0, 255, 255, 0.1) 0%, transparent 50%),
-                radial-gradient(circle at 80% 20%, rgba(138, 43, 226, 0.1) 0%, transparent 50%),
-                linear-gradient(135deg, #0a0a0f 0%, #1a1a2e 100%);
+            font-family: 'Rajdhani', sans-serif;
+            background: var(--bg-dark);
+            color: var(--text-primary);
+            overflow-x: hidden;
             min-height: 100vh;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            padding: 20px;
-            overflow: hidden;
+            position: relative;
         }
-
-        .neural-grid {
+        
+        /* Animated background */
+        body::before {
+            content: '';
             position: fixed;
             top: 0;
             left: 0;
             width: 100%;
             height: 100%;
-            opacity: 0.1;
+            background: 
+                radial-gradient(circle at 20% 80%, rgba(0, 245, 255, 0.1) 0%, transparent 50%),
+                radial-gradient(circle at 80% 20%, rgba(255, 0, 255, 0.1) 0%, transparent 50%),
+                radial-gradient(circle at 40% 40%, rgba(138, 43, 226, 0.05) 0%, transparent 50%);
+            animation: backgroundPulse 8s ease-in-out infinite alternate;
             z-index: -1;
-            background-image: 
-                linear-gradient(rgba(0, 255, 255, 0.1) 1px, transparent 1px),
-                linear-gradient(90deg, rgba(0, 255, 255, 0.1) 1px, transparent 1px);
-            background-size: 50px 50px;
-            animation: gridPulse 4s ease-in-out infinite;
         }
-
-        @keyframes gridPulse {
-            0%, 100% { opacity: 0.1; }
-            50% { opacity: 0.2; }
+        
+        @keyframes backgroundPulse {
+            0% { opacity: 0.3; }
+            100% { opacity: 0.6; }
         }
-
-        .chat-container {
-            background: var(--glass-bg);
-            backdrop-filter: blur(20px);
-            border: 1px solid var(--border-color);
-            border-radius: 0;
-            box-shadow: 
-                0 0 40px rgba(0, 255, 255, 0.1),
-                inset 0 0 40px rgba(0, 255, 255, 0.05);
-            width: 100%;
-            max-width: 900px;
-            height: 85vh;
-            display: flex;
-            flex-direction: column;
-            overflow: hidden;
-            position: relative;
-        }
-
-        .chat-container::before {
+        
+        /* Grid overlay */
+        body::after {
             content: '';
-            position: absolute;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-image: 
+                linear-gradient(rgba(0, 245, 255, 0.03) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(0, 245, 255, 0.03) 1px, transparent 1px);
+            background-size: 50px 50px;
+            z-index: -1;
+            animation: gridMove 20s linear infinite;
+        }
+        
+        @keyframes gridMove {
+            0% { transform: translate(0, 0); }
+            100% { transform: translate(50px, 50px); }
+        }
+        
+        /* Status bar */
+        .status-bar {
+            position: fixed;
             top: 0;
             left: 0;
             right: 0;
-            height: 2px;
-            background: linear-gradient(90deg, transparent, var(--primary-cyan), transparent);
-            animation: scanline 3s linear infinite;
-        }
-
-        @keyframes scanline {
-            0% { transform: translateX(-100%); }
-            100% { transform: translateX(100%); }
-        }
-
-        .chat-header {
-            background: linear-gradient(135deg, var(--bg-secondary) 0%, var(--bg-tertiary) 100%);
-            color: var(--text-primary);
-            padding: 20px;
-            position: relative;
-            border-bottom: 1px solid var(--border-color);
-        }
-
-        .chat-header::after {
-            content: '';
-            position: absolute;
-            bottom: 0;
-            left: 0;
-            right: 0;
-            height: 1px;
-            background: linear-gradient(90deg, transparent, var(--primary-cyan), transparent);
-            animation: headerGlow 2s linear infinite alternate;
-        }
-
-        @keyframes headerGlow {
-            0% { opacity: 0.3; }
-            100% { opacity: 0.8; }
-        }
-
-        .header-content {
+            height: 60px;
+            background: rgba(0, 0, 0, 0.8);
+            backdrop-filter: blur(10px);
+            border-bottom: 1px solid var(--glass-border);
             display: flex;
             align-items: center;
             justify-content: space-between;
+            padding: 0 20px;
+            z-index: 1000;
+            font-family: 'Orbitron', monospace;
         }
-
-        .title-section {
+        
+        .status-left {
             display: flex;
             align-items: center;
-            gap: 15px;
+            gap: 20px;
         }
-
-        .mai-logo {
-            font-family: 'Orbitron', monospace;
-            font-size: 28px;
+        
+        .logo {
+            font-size: 24px;
             font-weight: 900;
-            color: var(--primary-cyan);
-            text-shadow: 0 0 20px var(--primary-cyan);
-            letter-spacing: 3px;
+            background: linear-gradient(45deg, var(--primary-cyan), var(--primary-magenta));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            text-shadow: 0 0 20px rgba(0, 245, 255, 0.5);
         }
-
-        .subtitle {
+        
+        .status-indicator {
+            display: flex;
+            align-items: center;
+            gap: 8px;
             font-size: 12px;
             color: var(--text-secondary);
-            text-transform: uppercase;
-            letter-spacing: 1px;
-            margin-top: 5px;
         }
-
-        .status-panel {
+        
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--success);
+            animation: pulse 2s infinite;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.3; }
+        }
+        
+        .status-right {
             display: flex;
-            align-items: center;
             gap: 15px;
         }
-
-        .status-indicator {
-            width: 12px;
-            height: 12px;
-            border-radius: 50%;
-            background: var(--neon-green);
-            box-shadow: 0 0 15px var(--neon-green);
-            animation: statusPulse 2s infinite;
-            position: relative;
+        
+        .status-item {
+            font-size: 11px;
+            color: var(--text-secondary);
         }
-
-        @keyframes statusPulse {
-            0%, 100% { 
-                opacity: 1; 
-                box-shadow: 0 0 15px var(--neon-green);
-            }
-            50% { 
-                opacity: 0.6; 
-                box-shadow: 0 0 25px var(--neon-green);
-            }
-        }
-
-        .neural-pattern {
-            font-family: 'Orbitron', monospace;
-            font-size: 10px;
+        
+        .status-value {
             color: var(--primary-cyan);
-            opacity: 0.7;
+            font-weight: 700;
         }
-
-        .chat-messages {
+        
+        /* Main container */
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 80px 20px 20px;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        /* Chat area */
+        .chat-container {
             flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+        
+        .chat-header {
+            text-align: center;
+            padding: 20px;
+            background: var(--glass-bg);
+            border: 1px solid var(--glass-border);
+            border-radius: 15px;
+            backdrop-filter: blur(10px);
+        }
+        
+        .chat-title {
+            font-family: 'Orbitron', monospace;
+            font-size: 28px;
+            font-weight: 700;
+            margin-bottom: 10px;
+            background: linear-gradient(45deg, var(--primary-cyan), var(--primary-magenta), var(--primary-purple));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            animation: textGlow 3s ease-in-out infinite alternate;
+        }
+        
+        @keyframes textGlow {
+            0% { filter: drop-shadow(0 0 5px rgba(0, 245, 255, 0.5)); }
+            100% { filter: drop-shadow(0 0 20px rgba(255, 0, 255, 0.8)); }
+        }
+        
+        .chat-subtitle {
+            color: var(--text-secondary);
+            font-size: 16px;
+        }
+        
+        .messages-container {
+            flex: 1;
+            min-height: 400px;
+            max-height: 60vh;
             overflow-y: auto;
             padding: 20px;
-            background: rgba(10, 10, 15, 0.3);
-            position: relative;
+            background: var(--glass-bg);
+            border: 1px solid var(--glass-border);
+            border-radius: 15px;
+            backdrop-filter: blur(10px);
+            scroll-behavior: smooth;
         }
-
-        .chat-messages::-webkit-scrollbar {
+        
+        .messages-container::-webkit-scrollbar {
             width: 8px;
         }
-
-        .chat-messages::-webkit-scrollbar-track {
-            background: rgba(0, 0, 0, 0.3);
-        }
-
-        .chat-messages::-webkit-scrollbar-thumb {
-            background: var(--primary-cyan);
+        
+        .messages-container::-webkit-scrollbar-track {
+            background: rgba(0, 0, 0, 0.2);
             border-radius: 4px;
-            box-shadow: 0 0 10px var(--primary-cyan);
         }
-
+        
+        .messages-container::-webkit-scrollbar-thumb {
+            background: linear-gradient(45deg, var(--primary-cyan), var(--primary-magenta));
+            border-radius: 4px;
+        }
+        
         .message {
-            margin-bottom: 25px;
             display: flex;
+            margin-bottom: 20px;
             animation: messageSlide 0.5s ease-out;
-            position: relative;
         }
-
+        
         @keyframes messageSlide {
-            from {
+            0% {
                 opacity: 0;
-                transform: translateY(30px) scale(0.95);
+                transform: translateY(20px);
             }
-            to {
+            100% {
                 opacity: 1;
-                transform: translateY(0) scale(1);
+                transform: translateY(0);
             }
         }
-
+        
         .message.user {
             justify-content: flex-end;
         }
-
+        
         .message.assistant {
             justify-content: flex-start;
         }
-
-        .message-content {
+        
+        .message-bubble {
             max-width: 70%;
-            padding: 18px 24px;
-            border-radius: 0;
-            word-wrap: break-word;
-            line-height: 1.6;
+            padding: 15px 20px;
+            border-radius: 20px;
             position: relative;
-            font-size: 14px;
+            word-wrap: break-word;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
         }
-
-        .message.user .message-content {
-            background: linear-gradient(135deg, var(--secondary-cyan) 0%, var(--primary-cyan) 100%);
-            color: var(--bg-primary);
-            border: 1px solid var(--primary-cyan);
-            box-shadow: 0 0 20px rgba(0, 255, 255, 0.3);
-            clip-path: polygon(0 0, calc(100% - 15px) 0, 100% 100%, 0 100%);
+        
+        .message.user .message-bubble {
+            background: linear-gradient(135deg, var(--primary-cyan), var(--neon-blue));
+            color: var(--bg-dark);
+            font-weight: 500;
+            border-bottom-right-radius: 5px;
         }
-
-        .message.assistant .message-content {
-            background: var(--glass-bg);
+        
+        .message.assistant .message-bubble {
+            background: linear-gradient(135deg, var(--glass-bg), rgba(255, 0, 255, 0.1));
+            border: 1px solid rgba(255, 0, 255, 0.3);
             color: var(--text-primary);
-            border: 1px solid var(--border-color);
-            box-shadow: 0 0 20px rgba(0, 0, 0, 0.3);
-            clip-path: polygon(15px 0, 100% 0, 100% 100%, 0 100%);
+            border-bottom-left-radius: 5px;
         }
-
+        
         .message-avatar {
-            width: 45px;
-            height: 45px;
-            border-radius: 0;
-            margin: 0 15px;
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            margin: 0 10px;
             display: flex;
             align-items: center;
             justify-content: center;
             font-weight: 700;
             font-size: 16px;
-            font-family: 'Orbitron', monospace;
-            position: relative;
-            border: 2px solid;
         }
-
+        
         .message.user .message-avatar {
-            background: linear-gradient(135deg, var(--neon-green) 0%, var(--primary-cyan) 100%);
-            color: var(--bg-primary);
-            border-color: var(--primary-cyan);
+            background: linear-gradient(45deg, var(--primary-cyan), var(--neon-blue));
+            color: var(--bg-dark);
             order: 2;
-            box-shadow: 0 0 20px rgba(0, 255, 255, 0.5);
         }
-
+        
         .message.assistant .message-avatar {
-            background: linear-gradient(135deg, var(--accent-purple) 0%, var(--primary-cyan) 100%);
+            background: linear-gradient(45deg, var(--primary-magenta), var(--primary-purple));
             color: var(--text-primary);
-            border-color: var(--primary-cyan);
-            box-shadow: 0 0 20px rgba(138, 43, 226, 0.5);
+            animation: avatarGlow 2s ease-in-out infinite alternate;
         }
-
-        .chat-input-container {
-            padding: 20px;
+        
+        @keyframes avatarGlow {
+            0% { box-shadow: 0 0 10px rgba(255, 0, 255, 0.5); }
+            100% { box-shadow: 0 0 25px rgba(255, 0, 255, 0.8); }
+        }
+        
+        /* Typing indicator */
+        .typing-indicator {
+            display: none;
+            align-items: center;
+            gap: 10px;
+            padding: 15px 20px;
+            margin-bottom: 20px;
             background: var(--glass-bg);
-            border-top: 1px solid var(--border-color);
-            position: relative;
+            border: 1px solid var(--glass-border);
+            border-radius: 20px;
+            backdrop-filter: blur(10px);
+            max-width: 200px;
         }
-
-        .chat-input-container::before {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
-            height: 1px;
-            background: linear-gradient(90deg, transparent, var(--primary-cyan), transparent);
+        
+        .typing-indicator.show {
+            display: flex;
+            animation: messageSlide 0.5s ease-out;
         }
-
-        .chat-input-wrapper {
+        
+        .typing-dots {
+            display: flex;
+            gap: 4px;
+        }
+        
+        .typing-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--primary-cyan);
+            animation: typingBounce 1.4s infinite;
+        }
+        
+        .typing-dot:nth-child(2) {
+            animation-delay: 0.2s;
+        }
+        
+        .typing-dot:nth-child(3) {
+            animation-delay: 0.4s;
+        }
+        
+        @keyframes typingBounce {
+            0%, 60%, 100% {
+                transform: translateY(0);
+            }
+            30% {
+                transform: translateY(-10px);
+            }
+        }
+        
+        /* Input area */
+        .input-area {
+            background: var(--glass-bg);
+            border: 1px solid var(--glass-border);
+            border-radius: 15px;
+            padding: 20px;
+            backdrop-filter: blur(10px);
             display: flex;
             gap: 15px;
             align-items: flex-end;
-            margin-bottom: 15px;
         }
-
-        .chat-input {
+        
+        .input-group {
             flex: 1;
-            border: 2px solid var(--border-color);
-            border-radius: 0;
-            padding: 15px 20px;
-            font-size: 14px;
-            font-family: 'JetBrains Mono', monospace;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        
+        .input-field {
+            background: rgba(0, 0, 0, 0.3);
+            border: 2px solid transparent;
+            border-radius: 10px;
+            padding: 12px 15px;
+            color: var(--text-primary);
+            font-size: 16px;
+            font-family: inherit;
             outline: none;
             transition: all 0.3s ease;
-            resize: none;
-            max-height: 120px;
+            resize: vertical;
             min-height: 50px;
-            background: rgba(0, 0, 0, 0.5);
-            color: var(--text-primary);
-            box-shadow: inset 0 0 10px rgba(0, 0, 0, 0.5);
+            max-height: 150px;
         }
-
-        .chat-input:focus {
+        
+        .input-field:focus {
             border-color: var(--primary-cyan);
-            box-shadow: 
-                inset 0 0 10px rgba(0, 0, 0, 0.5),
-                0 0 20px rgba(0, 255, 255, 0.3);
+            box-shadow: 0 0 20px rgba(0, 245, 255, 0.3);
+            background: rgba(0, 0, 0, 0.5);
         }
-
-        .chat-input::placeholder {
+        
+        .input-field::placeholder {
             color: var(--text-secondary);
-            opacity: 0.7;
         }
-
-        .send-button {
-            background: linear-gradient(135deg, var(--secondary-cyan) 0%, var(--primary-cyan) 100%);
-            color: var(--bg-primary);
-            border: 2px solid var(--primary-cyan);
-            border-radius: 0;
-            width: 50px;
-            height: 50px;
+        
+        .button-group {
+            display: flex;
+            gap: 10px;
+        }
+        
+        .btn {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 10px;
+            font-family: 'Orbitron', monospace;
+            font-weight: 700;
+            font-size: 14px;
             cursor: pointer;
             transition: all 0.3s ease;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 18px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
             position: relative;
-            font-family: 'Orbitron', monospace;
+            overflow: hidden;
         }
-
-        .send-button:hover {
-            box-shadow: 0 0 25px rgba(0, 255, 255, 0.6);
-            transform: scale(1.05);
+        
+        .btn::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+            transition: left 0.5s ease;
         }
-
-        .send-button:disabled {
-            opacity: 0.4;
+        
+        .btn:hover::before {
+            left: 100%;
+        }
+        
+        .btn-primary {
+            background: linear-gradient(45deg, var(--primary-cyan), var(--neon-blue));
+            color: var(--bg-dark);
+        }
+        
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 25px rgba(0, 245, 255, 0.4);
+        }
+        
+        .btn-secondary {
+            background: linear-gradient(45deg, var(--primary-magenta), var(--primary-purple));
+            color: var(--text-primary);
+        }
+        
+        .btn-secondary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 25px rgba(255, 0, 255, 0.4);
+        }
+        
+        .btn-danger {
+            background: linear-gradient(45deg, var(--error), #cc0044);
+            color: var(--text-primary);
+        }
+        
+        .btn-danger:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 25px rgba(255, 51, 102, 0.4);
+        }
+        
+        .btn:disabled {
+            opacity: 0.5;
             cursor: not-allowed;
-            transform: none;
-            box-shadow: none;
+            transform: none !important;
+            box-shadow: none !important;
         }
-
-        .typing-indicator {
-            display: none;
-            padding: 15px 20px;
-            margin-bottom: 20px;
-        }
-
-        .typing-indicator.show {
-            display: block;
-        }
-
-        .typing-dots {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-
-        .typing-dot {
-            width: 10px;
-            height: 10px;
-            border-radius: 50%;
-            background: var(--primary-cyan);
-            animation: typingDotGlow 1.4s infinite ease-in-out;
-            box-shadow: 0 0 10px var(--primary-cyan);
-        }
-
-        .typing-dot:nth-child(1) { animation-delay: -0.32s; }
-        .typing-dot:nth-child(2) { animation-delay: -0.16s; }
-
-        @keyframes typingDotGlow {
-            0%, 80%, 100% {
-                transform: scale(0.5);
-                opacity: 0.3;
-                box-shadow: 0 0 5px var(--primary-cyan);
-            }
-            40% {
-                transform: scale(1);
-                opacity: 1;
-                box-shadow: 0 0 15px var(--primary-cyan);
-            }
-        }
-
+        
+        /* Control buttons */
         .controls {
             display: flex;
-            gap: 15px;
-            justify-content: center;
+            gap: 10px;
+            margin-top: 15px;
+            flex-wrap: wrap;
         }
-
-        .control-button {
-            background: rgba(0, 0, 0, 0.6);
-            border: 1px solid var(--border-color);
-            border-radius: 0;
-            width: 45px;
-            height: 45px;
+        
+        .btn-small {
+            padding: 8px 16px;
+            font-size: 12px;
+        }
+        
+        /* Floating audio button */
+        .audio-float {
+            position: fixed;
+            bottom: 30px;
+            right: 30px;
+            width: 60px;
+            height: 60px;
+            background: linear-gradient(45deg, var(--primary-magenta), var(--primary-purple));
+            border: none;
+            border-radius: 50%;
+            color: var(--text-primary);
+            font-size: 24px;
             cursor: pointer;
             transition: all 0.3s ease;
+            z-index: 1000;
+            box-shadow: 0 4px 20px rgba(255, 0, 255, 0.4);
             display: flex;
             align-items: center;
             justify-content: center;
-            position: relative;
-            font-size: 18px;
-            color: var(--text-secondary);
         }
-
-        .control-button:hover {
-            background: rgba(0, 255, 255, 0.1);
-            border-color: var(--primary-cyan);
-            color: var(--primary-cyan);
-            box-shadow: 0 0 15px rgba(0, 255, 255, 0.3);
+        
+        .audio-float:hover {
+            transform: scale(1.1) rotate(5deg);
+            box-shadow: 0 8px 30px rgba(255, 0, 255, 0.6);
         }
-
-        .tooltip {
-            position: absolute;
-            bottom: 55px;
-            left: 50%;
-            transform: translateX(-50%);
-            background: var(--bg-primary);
-            color: var(--text-primary);
-            padding: 8px 12px;
-            border: 1px solid var(--primary-cyan);
-            font-size: 11px;
-            white-space: nowrap;
-            opacity: 0;
-            pointer-events: none;
-            transition: opacity 0.3s ease;
-            z-index: 1000;
-            box-shadow: 0 0 10px rgba(0, 255, 255, 0.3);
-        }
-
-        .control-button:hover .tooltip {
-            opacity: 1;
-        }
-
-        .error-message {
-            background: rgba(255, 7, 58, 0.2);
-            color: var(--error-red);
-            padding: 12px 18px;
-            border: 1px solid var(--error-red);
-            border-radius: 0;
-            margin: 10px 0;
-            border-left: 4px solid var(--error-red);
-            font-size: 13px;
-            box-shadow: 0 0 15px rgba(255, 7, 58, 0.2);
-        }
-
-        .welcome-message {
-            text-align: center;
-            color: var(--text-secondary);
-            padding: 60px 20px;
-            font-family: 'Orbitron', monospace;
-            position: relative;
-        }
-
-        .welcome-message h2 {
-            color: var(--primary-cyan);
-            font-size: 24px;
-            margin-bottom: 20px;
-            text-shadow: 0 0 20px var(--primary-cyan);
-        }
-
-        .welcome-message p {
-            margin: 15px 0;
-            line-height: 1.8;
-        }
-
-        .memory-info {
-            font-size: 10px;
-            color: var(--text-secondary);
-            text-align: center;
-            margin-top: 10px;
-            font-family: 'JetBrains Mono', monospace;
-            opacity: 0.8;
-        }
-
-        .glitch {
-            position: relative;
-            animation: glitch 3s infinite;
-        }
-
-        @keyframes glitch {
-            0% { transform: translate(0); }
-            20% { transform: translate(-2px, 2px); }
-            40% { transform: translate(-2px, -2px); }
-            60% { transform: translate(2px, 2px); }
-            80% { transform: translate(2px, -2px); }
-            100% { transform: translate(0); }
-        }
-
-        /* Icon definitions */
-        .icon-clear::before { content: "⌫"; }
-        .icon-memory::before { content: "🧠"; }
-        .icon-stats::before { content: "📊"; }
-        .icon-health::before { content: "⚡"; }
-
+        
         /* Responsive design */
         @media (max-width: 768px) {
-            body {
-                padding: 10px;
+            .container {
+                padding: 80px 10px 20px;
             }
-
-            .chat-container {
-                height: 95vh;
-                max-width: 100%;
+            
+            .status-bar {
+                padding: 0 15px;
             }
-
-            .chat-header {
-                padding: 15px;
+            
+            .logo {
+                font-size: 20px;
             }
-
-            .mai-logo {
-                font-size: 22px;
+            
+            .status-right {
+                display: none;
             }
-
-            .message-content {
+            
+            .chat-title {
+                font-size: 24px;
+            }
+            
+            .message-bubble {
                 max-width: 85%;
-                padding: 15px 18px;
             }
-
-            .chat-messages {
-                padding: 15px;
+            
+            .input-area {
+                flex-direction: column;
+                gap: 15px;
             }
-
-            .chat-input-container {
-                padding: 15px;
+            
+            .button-group {
+                justify-content: center;
             }
-
+            
             .controls {
-                gap: 10px;
+                justify-content: center;
             }
-
-            .control-button {
-                width: 40px;
-                height: 40px;
-                font-size: 16px;
+            
+            .audio-float {
+                bottom: 20px;
+                right: 20px;
+                width: 50px;
+                height: 50px;
+                font-size: 20px;
             }
+        }
+        
+        /* Glitch effect */
+        .glitch {
+            animation: glitch 0.3s ease-in-out;
+        }
+        
+        @keyframes glitch {
+            0% { transform: translateX(0); }
+            20% { transform: translateX(-2px); }
+            40% { transform: translateX(2px); }
+            60% { transform: translateX(-1px); }
+            80% { transform: translateX(1px); }
+            100% { transform: translateX(0); }
+        }
+        
+        /* Loading animation */
+        .loading {
+            animation: loading 1s ease-in-out infinite;
+        }
+        
+        @keyframes loading {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        
+        /* Error message */
+        .error-message {
+            background: rgba(255, 51, 102, 0.1);
+            border: 1px solid var(--error);
+            color: var(--error);
+            padding: 15px;
+            border-radius: 10px;
+            margin: 10px 0;
+            text-align: center;
+            animation: errorPulse 2s ease-in-out infinite;
+        }
+        
+        @keyframes errorPulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.7; }
         }
     </style>
 </head>
 <body>
-    <div class="neural-grid"></div>
-    
-    <div class="chat-container">
-        <div class="chat-header">
-            <div class="header-content">
-                <div class="title-section">
-                    <div>
-                        <div class="mai-logo glitch">MAI</div>
-                        <div class="subtitle">Neural Interface Protocol</div>
-                    </div>
-                </div>
-                <div class="status-panel">
-                    <div class="neural-pattern">◈◇◈◇◈</div>
-                    <div class="status-indicator" id="statusIndicator" title="System Status"></div>
-                </div>
+    <!-- Status Bar -->
+    <div class="status-bar">
+        <div class="status-left">
+            <div class="logo">MAI</div>
+            <div class="status-indicator">
+                <div class="status-dot"></div>
+                <span id="system-status">ONLINE</span>
             </div>
         </div>
+        <div class="status-right">
 
-        <div class="chat-messages" id="chatMessages">
-            <div class="welcome-message">
-                <h2>NEURAL LINK ESTABLISHED</h2>
-                <p>◈ IDENTITY: MAI - Emotionally Intelligent AI Interface</p>
-                <p>◈ STATUS: Cognitive patterns synchronized</p>
-                <p>◈ MEMORY: Long-term relationship protocols active</p>
-                <p>◈ Ready for neural communication...</p>
+            <div class="status-item">
+                <span>LATENCY:</span>
+                <span class="status-value" id="latency">0ms</span>
             </div>
-        </div>
-
-        <div class="typing-indicator" id="typingIndicator">
-            <div class="message assistant">
-                <div class="message-avatar">M</div>
-                <div class="message-content">
-                    <div class="typing-dots">
-                        <span class="typing-dot"></span>
-                        <span class="typing-dot"></span>
-                        <span class="typing-dot"></span>
-                    </div>
-                </div>
+            <div class="status-item">
+                <span>MESSAGES:</span>
+                <span class="status-value" id="message-count">0</span>
             </div>
-        </div>
-
-        <div class="chat-input-container">
-            <div id="errorContainer"></div>
-            <div class="chat-input-wrapper">
-                <textarea 
-                    id="chatInput" 
-                    class="chat-input" 
-                    placeholder="Initialize neural communication..."
-                    rows="1"
-                ></textarea>
-                <button id="sendButton" class="send-button" title="Transmit">
-                    ▶
-                </button>
-            </div>
-            <div class="controls">
-                <button class="control-button icon-clear" onclick="clearChat()">
-                    <div class="tooltip">Clear Chat History</div>
-                </button>
-                <button class="control-button icon-memory" onclick="clearMemory()">
-                    <div class="tooltip">Purge Memory Banks</div>
-                </button>
-                <button class="control-button icon-stats" onclick="showMemoryStats()">
-                    <div class="tooltip">Memory Analytics</div>
-                </button>
-                <button class="control-button icon-health" onclick="checkHealth()">
-                    <div class="tooltip">System Diagnostics</div>
-                </button>
-            </div>
-            <div class="memory-info" id="memoryInfo">◈ AWAITING NEURAL SYNC ◈</div>
         </div>
     </div>
 
+    <div class="container">
+        <!-- Chat Header -->
+        <div class="chat-header">
+            <h1 class="chat-title">Neural Interface</h1>
+            <p class="chat-subtitle">Emotionally Intelligent AI Assistant</p>
+        </div>
+
+        <!-- Chat Container -->
+        <div class="chat-container">
+            <!-- Messages Area -->
+            <div class="messages-container" id="messages">
+                <!-- Messages will be inserted here -->
+            </div>
+
+            <!-- Typing Indicator -->
+            <div class="typing-indicator" id="typing-indicator">
+                <div class="message-avatar">M</div>
+                <div>
+                    <div>Mai is thinking...</div>
+                    <div class="typing-dots">
+                        <div class="typing-dot"></div>
+                        <div class="typing-dot"></div>
+                        <div class="typing-dot"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Input Area -->
+        <div class="input-area">
+            <div class="input-group">
+                <textarea 
+                    id="message-input" 
+                    class="input-field" 
+                    placeholder="Enter your message..."
+                    rows="1"
+                ></textarea>
+                <div class="controls">
+                    <button class="btn btn-secondary btn-small" id="clear-chat">Clear Chat</button>
+                    <button class="btn btn-danger btn-small" id="clear-memory">Clear Memory</button>
+                    <button class="btn btn-secondary btn-small" id="refresh-stats">Refresh</button>
+                </div>
+            </div>
+            <div class="button-group">
+                <button class="btn btn-primary" id="send-btn">Send</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Floating Audio Button -->
+    <button class="audio-float" id="audio-btn" title="Voice Interface">
+        🎤
+    </button>
+
     <script>
-        class MaiChat {
+        class MaiInterface {
             constructor() {
-                this.chatMessages = document.getElementById('chatMessages');
-                this.chatInput = document.getElementById('chatInput');
-                this.sendButton = document.getElementById('sendButton');
-                this.typingIndicator = document.getElementById('typingIndicator');
-                this.errorContainer = document.getElementById('errorContainer');
-                this.statusIndicator = document.getElementById('statusIndicator');
-                this.memoryInfo = document.getElementById('memoryInfo');
-
-                this.setupEventListeners();
-                this.checkSystemHealth();
-            }
-
-            setupEventListeners() {
-                // Send button click
-                this.sendButton.addEventListener('click', () => this.sendMessage());
+                this.messagesContainer = document.getElementById('messages');
+                this.messageInput = document.getElementById('message-input');
+                this.sendBtn = document.getElementById('send-btn');
+                this.typingIndicator = document.getElementById('typing-indicator');
+                this.clearChatBtn = document.getElementById('clear-chat');
+                this.clearMemoryBtn = document.getElementById('clear-memory');
+                this.refreshStatsBtn = document.getElementById('refresh-stats');
+                this.audioBtn = document.getElementById('audio-btn');
                 
-                // Enter key to send (Shift+Enter for new line)
-                this.chatInput.addEventListener('keydown', (e) => {
+                this.systemStatus = document.getElementById('system-status');
+                
+                this.latency = document.getElementById('latency');
+                this.messageCount = document.getElementById('message-count');
+                
+                this.messageCounter = 0;
+                this.isProcessing = false;
+                
+                this.init();
+            }
+            
+            async init() {
+                this.setupEventListeners();
+                await this.loadChatHistory();
+                await this.updateStats();
+                this.checkSystemHealth();
+                
+                // Auto-refresh stats every 30 seconds
+                setInterval(() => this.updateStats(), 30000);
+            }
+            
+            setupEventListeners() {
+                this.sendBtn.addEventListener('click', () => this.sendMessage());
+                this.messageInput.addEventListener('keydown', (e) => {
                     if (e.key === 'Enter' && !e.shiftKey) {
                         e.preventDefault();
                         this.sendMessage();
                     }
                 });
-
+                
+                this.clearChatBtn.addEventListener('click', () => this.clearChat());
+                this.clearMemoryBtn.addEventListener('click', () => this.clearMemory());
+                this.refreshStatsBtn.addEventListener('click', () => this.updateStats());
+                this.audioBtn.addEventListener('click', () => this.goToAudioInterface());
+                
                 // Auto-resize textarea
-                this.chatInput.addEventListener('input', () => {
-                    this.chatInput.style.height = 'auto';
-                    this.chatInput.style.height = Math.min(this.chatInput.scrollHeight, 120) + 'px';
+                this.messageInput.addEventListener('input', () => {
+                    this.messageInput.style.height = 'auto';
+                    this.messageInput.style.height = Math.min(this.messageInput.scrollHeight, 150) + 'px';
                 });
             }
-
+            
             async sendMessage() {
-                const message = this.chatInput.value.trim();
+                if (this.isProcessing) return;
+                
+                const message = this.messageInput.value.trim();
                 if (!message) return;
-
-                // Clear input and disable send button
-                this.chatInput.value = '';
-                this.chatInput.style.height = 'auto';
-                this.sendButton.disabled = true;
-                this.clearError();
-
-                // Add user message to chat
+                
+                this.isProcessing = true;
+                this.messageInput.value = '';
+                this.messageInput.style.height = 'auto';
+                this.updateButtonStates(true);
+                
+                // Add user message
                 this.addMessage('user', message);
-
-                // Show typing indicator
-                this.showTyping();
-
+                this.showTypingIndicator();
+                
+                const startTime = Date.now();
+                
                 try {
                     const response = await fetch('/chat', {
                         method: 'POST',
@@ -698,276 +753,287 @@
                         },
                         body: JSON.stringify({ message: message })
                     });
-
-                    const data = await response.json();
-
-                    if (data.success) {
-                        this.addMessage('assistant', data.message, data.metadata);
-                        this.updateMemoryInfo(data.metadata);
-                    } else {
-                        this.showError(data.error || 'Neural pathway disrupted');
-                        this.addMessage('assistant', data.message || 'Neural interface error detected. Attempting reconnection...');
+                    
+                    const latency = Date.now() - startTime;
+                    this.updateLatency(latency);
+                    
+                    if (!response.ok) {
+                        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
                     }
-
+                    
+                    const data = await response.json();
+                    
+                    // Simulate typing delay for better UX
+                    await this.delay(Math.min(1000, data.mai_response.length * 20));
+                    
+                    this.hideTypingIndicator();
+                    this.addMessage('assistant', data.mai_response);
+                    
+                    this.messageCounter++;
+                    this.updateMessageCount();
+                    
                 } catch (error) {
                     console.error('Error sending message:', error);
-                    this.showError('Neural network connectivity failure. Attempting recovery...');
-                    this.addMessage('assistant', 'Connection to neural matrix interrupted. Attempting to re-establish link...');
+                    this.hideTypingIndicator();
+                    this.showError(`Connection failed: ${error.message}`);
+                    this.addGlitchEffect();
+                } finally {
+                    this.isProcessing = false;
+                    this.updateButtonStates(false);
                 }
-
-                // Hide typing indicator and re-enable send button
-                this.hideTyping();
-                this.sendButton.disabled = false;
-                this.chatInput.focus();
             }
-
-            addMessage(role, content, metadata = null) {
-                // Remove welcome message if it exists
-                const welcomeMessage = this.chatMessages.querySelector('.welcome-message');
-                if (welcomeMessage) {
-                    welcomeMessage.remove();
-                }
-
+            
+            addMessage(sender, content) {
                 const messageDiv = document.createElement('div');
-                messageDiv.className = `message ${role}`;
-
-                const avatar = role === 'user' ? 'U' : 'M';
-                const avatarDiv = `<div class="message-avatar">${avatar}</div>`;
-                const contentDiv = `<div class="message-content">${this.formatMessage(content)}</div>`;
-
-                if (role === 'user') {
-                    messageDiv.innerHTML = contentDiv + avatarDiv;
+                messageDiv.className = `message ${sender}`;
+                
+                const avatar = document.createElement('div');
+                avatar.className = 'message-avatar';
+                avatar.textContent = sender === 'user' ? 'U' : 'M';
+                
+                const bubble = document.createElement('div');
+                bubble.className = 'message-bubble';
+                bubble.textContent = content;
+                
+                if (sender === 'user') {
+                    messageDiv.appendChild(bubble);
+                    messageDiv.appendChild(avatar);
                 } else {
-                    messageDiv.innerHTML = avatarDiv + contentDiv;
+                    messageDiv.appendChild(avatar);
+                    messageDiv.appendChild(bubble);
                 }
-
-                this.chatMessages.appendChild(messageDiv);
+                
+                this.messagesContainer.appendChild(messageDiv);
                 this.scrollToBottom();
             }
-
-            formatMessage(content) {
-                // Basic text formatting with cyberpunk styling
-                return content
-                    .replace(/\n/g, '<br>')
-                    .replace(/\*\*(.*?)\*\*/g, '<strong style="color: var(--primary-cyan); text-shadow: 0 0 5px var(--primary-cyan);">$1</strong>')
-                    .replace(/\*(.*?)\*/g, '<em style="color: var(--text-accent);">$1</em>');
-            }
-
-            showTyping() {
+            
+            showTypingIndicator() {
                 this.typingIndicator.classList.add('show');
                 this.scrollToBottom();
             }
-
-            hideTyping() {
+            
+            hideTypingIndicator() {
                 this.typingIndicator.classList.remove('show');
             }
-
-            showError(message) {
-                this.errorContainer.innerHTML = `<div class="error-message">◈ ERROR: ${message}</div>`;
-                setTimeout(() => this.clearError(), 5000);
-            }
-
-            clearError() {
-                this.errorContainer.innerHTML = '';
-            }
-
-            scrollToBottom() {
-                setTimeout(() => {
-                    this.chatMessages.scrollTop = this.chatMessages.scrollHeight;
-                }, 100);
-            }
-
-            updateMemoryInfo(metadata) {
-                if (metadata) {
-                    const info = `◈ NEURAL PATTERNS: ${metadata.memories_used} active | ${metadata.memories_stored} archived ◈`;
-                    this.memoryInfo.textContent = info;
+            
+            async clearChat() {
+                if (this.isProcessing) return;
+                
+                try {
+                    const response = await fetch('/clear_chat', {
+                        method: 'POST'
+                    });
+                    
+                    if (response.ok) {
+                        this.messagesContainer.innerHTML = '';
+                        this.messageCounter = 0;
+                        this.updateMessageCount();
+                        this.showSuccess('Chat cleared successfully');
+                    } else {
+                        throw new Error('Failed to clear chat');
+                    }
+                } catch (error) {
+                    console.error('Error clearing chat:', error);
+                    this.showError('Failed to clear chat');
                 }
             }
-
+            
+            async clearMemory() {
+                if (this.isProcessing) return;
+                
+                if (!confirm('Are you sure you want to clear Mai\'s memory? This action cannot be undone.')) {
+                    return;
+                }
+                
+                try {
+                    const response = await fetch('/clear_memory', {
+                        method: 'POST'
+                    });
+                    
+                    if (response.ok) {
+                        this.showSuccess('Memory cleared successfully');
+                        await this.updateStats();
+                    } else {
+                        throw new Error('Failed to clear memory');
+                    }
+                } catch (error) {
+                    console.error('Error clearing memory:', error);
+                    this.showError('Failed to clear memory');
+                }
+            }
+            
+            async loadChatHistory() {
+                try {
+                    const response = await fetch('/chat_history');
+                    
+                    if (response.ok) {
+                        const data = await response.json();
+                        
+                        if (data.messages && data.messages.length > 0) {
+                            data.messages.forEach(msg => {
+                                this.addMessage(msg.role === 'user' ? 'user' : 'assistant', msg.content);
+                            });
+                            this.messageCounter = data.messages.length;
+                            this.updateMessageCount();
+                        }
+                    }
+                } catch (error) {
+                    console.error('Error loading chat history:', error);
+                }
+            }
+            
+            async updateStats() {
+                try {
+                    const response = await fetch('/memory_stats');
+                    
+                    if (response.ok) {
+                        const data = await response.json();
+                        // No longer trying to update memoryUsage.textContent as it's removed from HTML
+                        // You could still log data if needed for debugging other stats
+                        // console.log("Memory stats received:", data); 
+                    }
+                } catch (error) {
+                    console.error('Error updating stats:', error);
+                }
+            }
+            
             async checkSystemHealth() {
                 try {
                     const response = await fetch('/health');
-                    const data = await response.json();
                     
-                    if (data.status === 'healthy') {
-                        this.statusIndicator.style.background = 'var(--neon-green)';
-                        this.statusIndicator.style.boxShadow = '0 0 15px var(--neon-green)';
-                        this.statusIndicator.title = 'Neural systems optimal';
-                    } else {
-                        this.statusIndicator.style.background = 'var(--error-red)';
-                        this.statusIndicator.style.boxShadow = '0 0 15px var(--error-red)';
-                        this.statusIndicator.title = 'System anomalies detected';
+                    if (response.ok) {
+                        const data = await response.json();
+                        this.systemStatus.textContent = data.status.toUpperCase();
+                        
+                        if (data.status === 'healthy') {
+                            this.systemStatus.parentElement.querySelector('.status-dot').style.background = 'var(--success)';
+                        } else {
+                            this.systemStatus.parentElement.querySelector('.status-dot').style.background = 'var(--warning)';
+                        }
                     }
                 } catch (error) {
-                    this.statusIndicator.style.background = 'var(--warning-orange)';
-                    this.statusIndicator.style.boxShadow = '0 0 15px var(--warning-orange)';
-                    this.statusIndicator.title = 'Neural link unstable';
+                    console.error('Error checking health:', error);
+                    this.systemStatus.textContent = 'OFFLINE';
+                    this.systemStatus.parentElement.querySelector('.status-dot').style.background = 'var(--error)';
                 }
             }
-        }
-
-        // Control functions with cyberpunk styling
-        async function clearChat() {
-            if (!confirm('◈ PURGE CURRENT SESSION DATA? ◈\n(Long-term neural patterns will remain intact)')) return;
             
-            try {
-                const response = await fetch('/clear_chat', { method: 'POST' });
-                const data = await response.json();
-                
-                if (data.success) {
-                    document.getElementById('chatMessages').innerHTML = `
-                        <div class="welcome-message">
-                            <h2>SESSION DATA PURGED</h2>
-                            <p>◈ Current conversation history cleared</p>
-                            <p>◈ Long-term neural patterns preserved</p>
-                            <p>◈ Ready for new communication cycle</p>
-                        </div>
-                    `;
-                    document.getElementById('memoryInfo').textContent = '◈ AWAITING NEURAL SYNC ◈';
-                } else {
-                    alert('◈ PURGE FAILED: ' + (data.error || 'Unknown error'));
-                }
-            } catch (error) {
-                alert('◈ SYSTEM ERROR: ' + error.message);
+            updateLatency(latency) {
+                this.latency.textContent = `${latency}ms`;
             }
-        }
-
-        async function clearMemory() {
-            if (!confirm('◈ WARNING: COMPLETE NEURAL PATTERN WIPE ◈\n\nThis will permanently erase all memory engrams.\nMAI will lose all knowledge of your identity and history.\n\n⚠️ THIS CANNOT BE UNDONE ⚠️')) return;
             
-            try {
-                const response = await fetch('/clear_memory', { method: 'POST' });
-                const data = await response.json();
+            updateMessageCount() {
+                this.messageCount.textContent = this.messageCounter;
+            }
+            
+            updateButtonStates(disabled) {
+                this.sendBtn.disabled = disabled;
+                this.clearChatBtn.disabled = disabled;
+                this.clearMemoryBtn.disabled = disabled;
                 
-                if (data.success) {
-                    alert(`◈ MEMORY PURGE COMPLETE ◈\n${data.deleted_count} neural patterns deleted.\nMAI identity matrix reset.`);
-                    document.getElementById('memoryInfo').textContent = '◈ NEURAL PATTERNS WIPED ◈';
+                if (disabled) {
+                    this.sendBtn.classList.add('loading');
                 } else {
-                    alert('◈ PURGE FAILED: ' + (data.error || 'Unknown error'));
+                    this.sendBtn.classList.remove('loading');
                 }
-            } catch (error) {
-                alert('◈ SYSTEM ERROR: ' + error.message);
+            }
+            
+            scrollToBottom() {
+                setTimeout(() => {
+                    this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight;
+                }, 100);
+            }
+            
+            showError(message) {
+                const errorDiv = document.createElement('div');
+                errorDiv.className = 'error-message';
+                errorDiv.textContent = message;
+                
+                this.messagesContainer.appendChild(errorDiv);
+                this.scrollToBottom();
+                
+                setTimeout(() => {
+                    errorDiv.remove();
+                }, 5000);
+            }
+            
+            showSuccess(message) {
+                const successDiv = document.createElement('div');
+                successDiv.className = 'error-message';
+                successDiv.style.background = 'rgba(0, 255, 136, 0.1)';
+                successDiv.style.borderColor = 'var(--success)';
+                successDiv.style.color = 'var(--success)';
+                successDiv.textContent = message;
+                
+                this.messagesContainer.appendChild(successDiv);
+                this.scrollToBottom();
+                
+                setTimeout(() => {
+                    successDiv.remove();
+                }, 3000);
+            }
+            
+            addGlitchEffect() {
+                document.body.classList.add('glitch');
+                setTimeout(() => {
+                    document.body.classList.remove('glitch');
+                }, 300);
+            }
+            
+            goToAudioInterface() {
+                window.location.href = '/audio_interface';
+            }
+            
+            delay(ms) {
+                return new Promise(resolve => setTimeout(resolve, ms));
             }
         }
-
-        async function showMemoryStats() {
-            try {
-                const response = await fetch('/memory_stats');
-                const data = await response.json();
-                
-                if (data.success) {
-                    const stats = `◈ NEURAL PATTERN ANALYSIS ◈
-
-        Personal memory engrams: ${data.user_memory_count || 0}
-        Total system patterns: ${data.overall_stats?.total_memories || 0}
-        Active session length: ${data.chat_history_length || 0}
-        Recent neural traces: ${data.recent_activity_count || 0}
-        System uptime: Online
-
-        ◈ Memory utilization optimal ◈`;
-                    
-                    alert(stats);
-                } else {
-                    alert('◈ ANALYSIS FAILED: ' + (data.error || 'Unknown error'));
-                }
-            } catch (error) {
-                alert('◈ DIAGNOSTIC ERROR: ' + error.message);
-            }
-        }
-
-        async function checkHealth() {
-            try {
-                const response = await fetch('/health');
-                const data = await response.json();
-                
-                const healthStatus = `◈ SYSTEM DIAGNOSTICS ◈
-
-        Neural Core: ${data.status === 'healthy' ? '✓ OPTIMAL' : '⚠ DEGRADED'}
-        Memory Banks: ${data.components?.memory === 'ok' ? '✓ OPTIMAL' : '⚠ DEGRADED'}
-        LLM Interface: ${data.components?.llm === 'ok' ? '✓ OPTIMAL' : '⚠ DEGRADED'}
-        Memory Count: ${data.memory_count || 0}
-
-        Last diagnostic: ${new Date().toLocaleTimeString()}
-
-        ◈ ${data.status === 'healthy' ? 'ALL SYSTEMS NOMINAL' : 'ANOMALIES DETECTED'} ◈`;
-                
-                alert(healthStatus);
-            } catch (error) {
-                alert('◈ DIAGNOSTIC FAILURE: Connection to neural matrix compromised');
-            }
-        }
-
-        // Initialize chat interface when page loads
+        
+        // Initialize the interface when DOM is loaded
         document.addEventListener('DOMContentLoaded', () => {
-            window.maiChat = new MaiChat();
-            
-            // Focus input after page loads
-            setTimeout(() => {
-                document.getElementById('chatInput').focus();
-            }, 500);
-            
-            // Add cyberpunk loading effect
-            const loadingEffect = document.createElement('div');
-            loadingEffect.style.cssText = `
-                position: fixed;
-                top: 0;
-                left: 0;
-                width: 100%;
-                height: 100%;
-                background: var(--bg-primary);
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                z-index: 9999;
-                transition: opacity 0.5s ease;
-            `;
-            loadingEffect.innerHTML = `
-                <div style="text-align: center; font-family: 'Orbitron', monospace;">
-                    <div style="font-size: 32px; color: var(--primary-cyan); text-shadow: 0 0 20px var(--primary-cyan); margin-bottom: 20px;">
-                        MAI
-                    </div>
-                    <div style="color: var(--text-secondary); font-size: 14px;">
-                        Initializing neural interface...
-                    </div>
-                </div>
-            `;
-            
-            document.body.appendChild(loadingEffect);
-            
-            // Remove loading screen after animation
-            setTimeout(() => {
-                loadingEffect.style.opacity = '0';
-                setTimeout(() => {
-                    if (document.body.contains(loadingEffect)) {
-                        document.body.removeChild(loadingEffect);
-                    }
-                }, 500);
-            }, 1500);
+            new MaiInterface();
         });
-
-        // Add glitch effects for enhanced cyberpunk feel
+        
+        // Add some interactive effects
+        document.addEventListener('mousemove', (e) => {
+            const cursor = { x: e.clientX, y: e.clientY };
+            
+            // Subtle parallax effect for background
+            const moveX = (cursor.x / window.innerWidth - 0.5) * 20;
+            const moveY = (cursor.y / window.innerHeight - 0.5) * 20;
+            
+            document.documentElement.style.setProperty('--mouse-x', moveX + 'px');
+            document.documentElement.style.setProperty('--mouse-y', moveY + 'px');
+        });
+        
+        // Add random glitch effects occasionally
         setInterval(() => {
-            const glitchElements = document.querySelectorAll('.glitch');
-            glitchElements.forEach(el => {
-                if (Math.random() > 0.95) {
-                    el.style.textShadow = '2px 0 var(--error-red), -2px 0 var(--primary-cyan)';
-                    setTimeout(() => {
-                        el.style.textShadow = '0 0 20px var(--primary-cyan)';
-                    }, 150);
-                }
-            });
-        }, 2000);
-
-        // Neural grid animation enhancement
-        setInterval(() => {
-            const grid = document.querySelector('.neural-grid');
-            if (grid && Math.random() > 0.8) {
-                grid.style.opacity = '0.3';
+            if (Math.random() < 0.01) { // 1% chance every second
+                const elements = document.querySelectorAll('.chat-title, .logo');
+                const randomElement = elements[Math.floor(Math.random() * elements.length)];
+                randomElement.classList.add('glitch');
                 setTimeout(() => {
-                    grid.style.opacity = '0.1';
-                }, 200);
+                    randomElement.classList.remove('glitch');
+                }, 300);
             }
-        }, 3000);
+        }, 1000);
+        
+        // Konami code easter egg
+        let konamiCode = [];
+        const konamiSequence = [38, 38, 40, 40, 37, 39, 37, 39, 66, 65]; // ↑↑↓↓←→←→BA
+        
+        document.addEventListener('keydown', (e) => {
+            konamiCode.push(e.keyCode);
+            konamiCode = konamiCode.slice(-10);
+            
+            if (konamiCode.join(',') === konamiSequence.join(',')) {
+                // Activate special mode
+                document.body.style.filter = 'hue-rotate(180deg)';
+                setTimeout(() => {
+                    document.body.style.filter = '';
+                }, 3000);
+            }
+        });
     </script>
 </body>
 </html>

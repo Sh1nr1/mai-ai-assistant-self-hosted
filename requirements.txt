@@ -13,3 +13,6 @@ tenacity
 httpx
 sentence-transformers
 chromadb
+torch
+transformersdis
+numpy
