@@ -351,7 +351,7 @@ Ready to meet a digital consciousness that remembers with mathematical precision
 
 ```bash
 python app.py
-# Visit: http://localhost:8000/voice
+# Visit: http://localhost:5000/audio_chat
 # Say: "Hello Mai, I'm ready to explore emotional digital consciousness."
 # Experience her new Ava Neural voice responding with genuine understanding
 ```
