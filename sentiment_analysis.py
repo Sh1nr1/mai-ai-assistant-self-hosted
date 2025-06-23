@@ -68,6 +68,10 @@ class SentimentAnalyzer:
         self.confidence_threshold = 0.3
         self.high_confidence_threshold = 0.7
 
+        # Store max sequence length for truncation (common for DistilRoBERTa is 512)
+        # We will retrieve this from the tokenizer once loaded
+        self.max_model_input_length = None 
+
     async def initialize(self) -> bool:
         """
         Initialize the sentiment analysis model asynchronously.
@@ -86,6 +90,10 @@ class SentimentAnalyzer:
             
             if model_data:
                 self.model, self.tokenizer, self.classifier = model_data
+                # Get the max_model_input_length from the tokenizer
+                self.max_model_input_length = self.tokenizer.model_max_length
+                logger.info(f"Model max input length: {self.max_model_input_length}")
+
                 self.is_initialized = True
                 logger.info("Sentiment analysis model loaded successfully")
                 return True
@@ -110,12 +118,14 @@ class SentimentAnalyzer:
             model = AutoModelForSequenceClassification.from_pretrained(self.model_name)
             
             # Create pipeline for easier inference
+            # --- IMPORTANT: Add truncation=True here ---
             classifier = pipeline(
                 "text-classification",
                 model=model,
                 tokenizer=tokenizer,
                 device=0 if torch.cuda.is_available() else -1,
-                return_all_scores=True
+                return_all_scores=True,
+                truncation=True # <--- THIS IS THE KEY ADDITION
             )
             
             return model, tokenizer, classifier
@@ -158,6 +168,7 @@ class SentimentAnalyzer:
         
         try:
             # Run inference in thread pool to maintain async compatibility
+            # The truncation will happen automatically within _classify_emotion via the pipeline
             result = await asyncio.to_thread(self._classify_emotion, text)
             return result
             
@@ -168,6 +179,7 @@ class SentimentAnalyzer:
     def _classify_emotion(self, text: str) -> Tuple[str, float]:
         """
         Classify emotion using the loaded model (runs in thread pool).
+        The pipeline configured with `truncation=True` handles text longer than max_model_input_length.
         
         Args:
             text (str): Text to classify
@@ -177,10 +189,15 @@ class SentimentAnalyzer:
         """
         try:
             # Get predictions from model
-            predictions = self.classifier(text)
+            # The pipeline will automatically truncate the input 'text' if it exceeds
+            # the model's maximum sequence length (e.g., 512 tokens).
+            predictions = self.classifier(text) 
             
             # Process results - predictions is a list of dicts with labels and scores
             if isinstance(predictions, list) and len(predictions) > 0:
+                # The pipeline with return_all_scores=True gives a list containing a list of dicts: [[{}, {}, ...]]
+                # or directly a list of dicts if single input: [{}, {}, ...]
+                # Handle both cases by getting the first element if it's a list.
                 prediction_scores = predictions[0] if isinstance(predictions[0], list) else predictions
                 
                 # Find highest confidence prediction
@@ -205,6 +222,8 @@ class SentimentAnalyzer:
                 
         except Exception as e:
             logger.error(f"Error in emotion classification: {str(e)}")
+            # Consider adding the full traceback here for better debugging
+            # logger.exception(f"Error in emotion classification: {e}")
             return "neutral", 0.1
 
     def _map_to_primary_emotion(self, raw_emotion: str) -> str:
@@ -316,7 +335,8 @@ class SentimentAnalyzer:
             'is_initialized': self.is_initialized,
             'primary_emotions': self.primary_emotions,
             'confidence_threshold': self.confidence_threshold,
-            'device': 'cuda' if torch.cuda.is_available() else 'cpu'
+            'device': 'cuda' if torch.cuda.is_available() else 'cpu',
+            'max_input_length': self.max_model_input_length
         }
 
 
@@ -381,6 +401,10 @@ if __name__ == "__main__":
         print("Testing Mai Sentiment Analysis Module")
         print("=" * 40)
         
+        # Configure logging for local testing
+        logging.basicConfig(level=logging.DEBUG, stream=sys.stdout,
+                            format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+        
         # Initialize analyzer
         success = await initialize_sentiment_analysis()
         if not success:
@@ -396,14 +420,17 @@ if __name__ == "__main__":
             "Wow, that's really surprising and amazing!",
             "Hello, how are you doing today?",
             "",
-            "The weather is nice."
+            "The weather is nice.",
+            # Add a long text to test truncation
+            "This is a very long piece of text that definitely exceeds the typical 512 token limit for models like DistilRoBERTa. We are writing this to test if the truncation mechanism in the Hugging Face pipeline works correctly. If it does, we should not see the 'Token indices sequence length is longer' error anymore. The model should simply process the first 512 tokens or so and provide a prediction based on that. This is crucial for maintaining stability and preventing crashes when users input very verbose messages. Hopefully, the pipeline handles this gracefully, allowing the rest of our application to function without interruption. We need to ensure that the core functionality remains robust, even under extreme input conditions. This long sentence continues to emphasize the importance of text handling. It just keeps going and going, testing the limits of what the model can handle without explicitly truncating the string beforehand. The `truncation=True` parameter in the pipeline is designed precisely for scenarios like this, where you want the model to process the input up to its maximum capacity and disregard anything beyond that. This approach simplifies the pre-processing step significantly for the developer. It's a convenient feature that prevents common errors related to sequence length. So, if everything is set up correctly, this sentence should be smoothly handled, even if only a portion of it is actually used for the prediction. The goal is resilience."
         ]
         
         for text in test_texts:
             emotion, confidence = await analyze_sentiment(text)
-            print(f"Text: '{text}'")
+            print(f"\nText: '{text[:100]}...'") # Print a snippet for long texts
             print(f"Emotion: {emotion}, Confidence: {confidence:.3f}")
             print("-" * 30)
     
     # Run test
+    import sys # Need to import sys for logging config in __main__
     asyncio.run(test_sentiment_analysis())

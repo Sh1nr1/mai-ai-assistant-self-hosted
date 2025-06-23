@@ -49,28 +49,362 @@ class MemoryManager:
             }
 
            
-           # Enhanced emotion keywords for better emotional context detection
            self.emotion_keywords = {
-               'joy': ['happy', 'excited', 'thrilled', 'delighted', 'cheerful', 'elated', 'joyful', 'ecstatic'],
-               'sadness': ['sad', 'depressed', 'melancholy', 'disappointed', 'heartbroken', 'sorrowful', 'grief'],
-               'anger': ['angry', 'furious', 'irritated', 'annoyed', 'frustrated', 'rage', 'mad', 'livid'],
-               'fear': ['scared', 'afraid', 'anxious', 'worried', 'nervous', 'terrified', 'panic', 'fearful'],
-               'surprise': ['surprised', 'shocked', 'amazed', 'astonished', 'stunned', 'bewildered'],
-               'love': ['love', 'adore', 'cherish', 'affection', 'romantic', 'caring', 'devoted', 'passionate'],
-               'trust': ['trust', 'confident', 'secure', 'reliable', 'dependable', 'faith', 'belief'],
-               'anticipation': ['excited', 'eager', 'hopeful', 'optimistic', 'looking forward', 'anticipating']
-           }
+                'joy': [
+                    'happy', 'excited', 'thrilled', 'delighted', 'cheerful', 'elated', 'joyful', 'ecstatic',
+                    'blissful', 'euphoric', 'jubilant', 'overjoyed', 'gleeful', 'exuberant', 'radiant', 'beaming',
+                    'buoyant', 'uplifted', 'spirited', 'vivacious', 'animated', 'exhilarated', 'rapturous', 'triumphant',
+                    'festive', 'merry', 'jolly', 'bright', 'sunny', 'optimistic', 'positive', 'upbeat',
+                    'energetic', 'lively', 'vibrant', 'enthusiastic', 'passionate', 'zestful', 'peppy', 'chipper',
+                    'bouncy', 'sparkling', 'glowing', 'radiant', 'luminous', 'brilliant', 'dazzling', 'shining',
+                    'wonderful', 'fantastic', 'amazing', 'incredible', 'spectacular', 'marvelous', 'superb', 'excellent',
+                    'outstanding', 'remarkable', 'extraordinary', 'phenomenal', 'magnificent', 'splendid', 'glorious', 'divine',
+                    'blessed', 'grateful', 'thankful', 'appreciative', 'content', 'satisfied', 'fulfilled', 'accomplished',
+                    'successful', 'victorious', 'winning', 'celebrating', 'party', 'dance', 'laugh', 'giggle',
+                    'smile', 'grin', 'beam', 'chuckle', 'rejoice', 'celebrate', 'toast', 'cheer'
+                ],
+                
+                'sadness': [
+                    'sad', 'depressed', 'melancholy', 'disappointed', 'heartbroken', 'sorrowful', 'grief', 'mourning',
+                    'despondent', 'dejected', 'downcast', 'crestfallen', 'disheartened', 'discouraged', 'dismayed', 'distressed',
+                    'anguished', 'tormented', 'suffering', 'pain', 'hurt', 'wounded', 'broken', 'shattered',
+                    'devastated', 'crushed', 'overwhelmed', 'hopeless', 'desperate', 'forlorn', 'desolate', 'lonely',
+                    'isolated', 'abandoned', 'rejected', 'unwanted', 'unloved', 'forgotten', 'ignored', 'neglected',
+                    'empty', 'hollow', 'void', 'numb', 'lost', 'confused', 'bewildered', 'helpless',
+                    'powerless', 'weak', 'vulnerable', 'fragile', 'delicate', 'sensitive', 'tender', 'raw',
+                    'blue', 'down', 'low', 'gloomy', 'dark', 'bleak', 'dreary', 'dismal',
+                    'miserable', 'wretched', 'pitiful', 'pathetic', 'tragic', 'unfortunate', 'unlucky', 'cursed',
+                    'doomed', 'damned', 'ruined', 'destroyed', 'finished', 'over', 'ended', 'gone',
+                    'missing', 'absent', 'lacking', 'wanting', 'needing', 'yearning', 'longing', 'craving',
+                    'weeping', 'crying', 'sobbing', 'tears', 'wailing', 'mourning', 'lamenting', 'grieving'
+                ],
+                
+                'anger': [
+                    'angry', 'furious', 'irritated', 'annoyed', 'frustrated', 'rage', 'mad', 'livid',
+                    'enraged', 'infuriated', 'irate', 'incensed', 'outraged', 'indignant', 'resentful', 'bitter',
+                    'hostile', 'aggressive', 'violent', 'vicious', 'savage', 'brutal', 'cruel', 'harsh',
+                    'fierce', 'intense', 'burning', 'blazing', 'seething', 'boiling', 'steaming', 'fuming',
+                    'raging', 'storming', 'thundering', 'explosive', 'volcanic', 'tempestuous', 'turbulent', 'chaotic',
+                    'wild', 'uncontrolled', 'unbridled', 'unleashed', 'untamed', 'ferocious', 'rabid', 'berserk',
+                    'manic', 'frenzied', 'hysterical', 'crazy', 'insane', 'mental', 'psychotic', 'deranged',
+                    'upset', 'disturbed', 'agitated', 'riled', 'worked up', 'heated', 'hot', 'fiery',
+                    'passionate', 'zealous', 'fervent', 'ardent', 'vehement', 'emphatic', 'forceful', 'powerful',
+                    'strong', 'mighty', 'potent', 'intense', 'extreme', 'severe', 'serious', 'grave',
+                    'critical', 'urgent', 'pressing', 'demanding', 'insistent', 'persistent', 'relentless', 'ruthless',
+                    'merciless', 'pitiless', 'heartless', 'cold', 'callous', 'cruel', 'mean', 'nasty',
+                    'spiteful', 'vindictive', 'vengeful', 'revengeful', 'retaliatory', 'punitive', 'destructive', 'harmful'
+                ],
+                
+                'fear': [
+                    'scared', 'afraid', 'anxious', 'worried', 'nervous', 'terrified', 'panic', 'fearful',
+                    'frightened', 'petrified', 'horrified', 'alarmed', 'startled', 'shocked', 'stunned', 'paralyzed',
+                    'frozen', 'immobilized', 'helpless', 'powerless', 'vulnerable', 'exposed', 'threatened', 'endangered',
+                    'insecure', 'uncertain', 'doubtful', 'hesitant', 'reluctant', 'cautious', 'wary', 'suspicious',
+                    'paranoid', 'obsessed', 'compulsive', 'phobic', 'claustrophobic', 'agoraphobic', 'acrophobic', 'arachnophobic',
+                    'dreading', 'anticipating', 'expecting', 'awaiting', 'bracing', 'preparing', 'girding', 'steeling',
+                    'trembling', 'shaking', 'quivering', 'shuddering', 'quaking', 'cowering', 'cringing', 'flinching',
+                    'recoiling', 'shrinking', 'withdrawing', 'retreating', 'hiding', 'avoiding', 'escaping', 'fleeing',
+                    'running', 'racing', 'rushing', 'hurrying', 'scrambling', 'dashing', 'bolting', 'darting',
+                    'panicking', 'freaking', 'losing it', 'breaking down', 'falling apart', 'cracking up', 'going crazy', 'losing mind',
+                    'nightmare', 'terror', 'horror', 'dread', 'apprehension', 'trepidation', 'foreboding', 'premonition',
+                    'intuition', 'feeling', 'sense', 'impression', 'hunch', 'suspicion', 'doubt', 'uncertainty',
+                    'risk', 'danger', 'threat', 'hazard', 'peril', 'jeopardy', 'trouble', 'problem'
+                ],
+                
+                'surprise': [
+                    'surprised', 'shocked', 'amazed', 'astonished', 'stunned', 'bewildered', 'dumbfounded', 'flabbergasted',
+                    'astounded', 'thunderstruck', 'awestruck', 'speechless', 'breathless', 'wordless', 'silent', 'quiet',
+                    'still', 'motionless', 'frozen', 'paralyzed', 'immobilized', 'transfixed', 'mesmerized', 'hypnotized',
+                    'spellbound', 'enchanted', 'captivated', 'fascinated', 'intrigued', 'curious', 'interested', 'engaged',
+                    'absorbed', 'engrossed', 'immersed', 'involved', 'invested', 'committed', 'dedicated', 'devoted',
+                    'unexpected', 'unforeseen', 'unpredictable', 'sudden', 'abrupt', 'swift', 'quick', 'rapid',
+                    'instant', 'immediate', 'spontaneous', 'impulsive', 'automatic', 'reflexive', 'instinctive', 'natural',
+                    'startling', 'jarring', 'jolting', 'shocking', 'disturbing', 'unsettling', 'unnerving', 'disconcerting',
+                    'confusing', 'puzzling', 'perplexing', 'mystifying', 'baffling', 'enigmatic', 'mysterious', 'strange',
+                    'odd', 'weird', 'bizarre', 'unusual', 'uncommon', 'rare', 'unique', 'special',
+                    'extraordinary', 'remarkable', 'notable', 'noteworthy', 'significant', 'important', 'meaningful', 'profound',
+                    'wow', 'whoa', 'omg', 'gosh', 'golly', 'goodness', 'heavens', 'mercy',
+                    'incredible', 'unbelievable', 'impossible', 'unthinkable', 'unimaginable', 'inconceivable', 'mind-blowing', 'jaw-dropping'
+                ],
+                
+                'love': [
+                    'love', 'adore', 'cherish', 'affection', 'romantic', 'caring', 'devoted', 'passionate',
+                    'tender', 'gentle', 'soft', 'warm', 'sweet', 'kind', 'compassionate', 'empathetic',
+                    'understanding', 'supportive', 'nurturing', 'protective', 'loyal', 'faithful', 'true', 'honest',
+                    'sincere', 'genuine', 'authentic', 'real', 'deep', 'profound', 'intense', 'strong',
+                    'powerful', 'overwhelming', 'consuming', 'all-encompassing', 'complete', 'total', 'absolute', 'pure',
+                    'unconditional', 'eternal', 'everlasting', 'forever', 'always', 'constant', 'steady', 'stable',
+                    'reliable', 'dependable', 'trustworthy', 'secure', 'safe', 'comfortable', 'peaceful', 'serene',
+                    'blissful', 'heavenly', 'divine', 'sacred', 'holy', 'blessed', 'precious', 'valuable',
+                    'treasured', 'prized', 'beloved', 'darling', 'sweetheart', 'honey', 'dear', 'baby',
+                    'intimate', 'close', 'connected', 'bonded', 'united', 'together', 'one', 'whole',
+                    'complete', 'fulfilled', 'satisfied', 'content', 'happy', 'joyful', 'delighted', 'pleased',
+                    'attracted', 'drawn', 'magnetized', 'pulled', 'captivated', 'enchanted', 'charmed', 'smitten',
+                    'infatuated', 'obsessed', 'crazy', 'mad', 'wild', 'head-over-heels', 'lovesick', 'romantic',
+                    'hearts', 'roses', 'flowers', 'gifts', 'surprise', 'date', 'kiss', 'hug', 'embrace', 'cuddle'
+                ],
+                
+                'trust': [
+                    'trust', 'confident', 'secure', 'reliable', 'dependable', 'faith', 'belief', 'conviction',
+                    'certainty', 'assurance', 'confidence', 'security', 'safety', 'protection', 'shelter', 'refuge',
+                    'sanctuary', 'haven', 'harbor', 'stronghold', 'fortress', 'castle', 'rock', 'foundation',
+                    'stable', 'steady', 'solid', 'firm', 'strong', 'sturdy', 'robust', 'durable',
+                    'lasting', 'enduring', 'permanent', 'fixed', 'established', 'proven', 'tested', 'verified',
+                    'confirmed', 'validated', 'authenticated', 'certified', 'approved', 'endorsed', 'recommended', 'guaranteed',
+                    'promised', 'pledged', 'committed', 'dedicated', 'devoted', 'loyal', 'faithful', 'true',
+                    'honest', 'sincere', 'genuine', 'authentic', 'real', 'legitimate', 'valid', 'sound',
+                    'reasonable', 'logical', 'rational', 'sensible', 'practical', 'realistic', 'achievable', 'possible',
+                    'credible', 'believable', 'plausible', 'likely', 'probable', 'certain', 'sure', 'positive',
+                    'definite', 'absolute', 'complete', 'total', 'full', 'whole', 'entire', 'perfect',
+                    'flawless', 'impeccable', 'excellent', 'outstanding', 'superior', 'first-class', 'top-notch', 'premium',
+                    'quality', 'professional', 'expert', 'skilled', 'experienced', 'knowledgeable', 'wise', 'intelligent',
+                    'smart', 'clever', 'brilliant', 'genius', 'masterful', 'accomplished', 'successful', 'proven'
+                ],
+                
+                'anticipation': [
+                    'excited', 'eager', 'hopeful', 'optimistic', 'looking forward', 'anticipating', 'expecting', 'awaiting',
+                    'planning', 'preparing', 'ready', 'set', 'poised', 'primed', 'geared', 'equipped',
+                    'armed', 'loaded', 'charged', 'energized', 'motivated', 'inspired', 'driven', 'determined',
+                    'focused', 'concentrated', 'intent', 'purposeful', 'deliberate', 'conscious', 'aware', 'alert',
+                    'attentive', 'watchful', 'observant', 'vigilant', 'careful', 'cautious', 'prudent', 'wise',
+                    'thoughtful', 'considerate', 'mindful', 'conscious', 'deliberate', 'intentional', 'purposeful', 'meaningful',
+                    'significant', 'important', 'valuable', 'worthwhile', 'beneficial', 'advantageous', 'profitable', 'rewarding',
+                    'satisfying', 'fulfilling', 'gratifying', 'pleasing', 'enjoyable', 'delightful', 'wonderful', 'fantastic',
+                    'amazing', 'incredible', 'spectacular', 'marvelous', 'superb', 'excellent', 'outstanding', 'remarkable',
+                    'extraordinary', 'phenomenal', 'magnificent', 'splendid', 'glorious', 'divine', 'heavenly', 'perfect',
+                    'ideal', 'dream', 'fantasy', 'vision', 'goal', 'objective', 'target', 'aim',
+                    'ambition', 'aspiration', 'desire', 'wish', 'want', 'need', 'requirement', 'necessity',
+                    'future', 'tomorrow', 'next', 'coming', 'approaching', 'near', 'close', 'imminent',
+                    'soon', 'shortly', 'presently', 'momentarily', 'immediately', 'instantly', 'right away', 'now'
+                ],
+                
+                # Additional emotion categories
+                'disgust': [
+                    'disgusted', 'revolted', 'repulsed', 'sickened', 'nauseated', 'appalled', 'horrified', 'repelled',
+                    'grossed out', 'turned off', 'put off', 'offended', 'insulted', 'outraged', 'scandalized', 'shocked',
+                    'disturbed', 'troubled', 'bothered', 'annoyed', 'irritated', 'aggravated', 'frustrated', 'upset',
+                    'distressed', 'displeased', 'dissatisfied', 'unhappy', 'disappointed', 'let down', 'betrayed', 'deceived',
+                    'vile', 'nasty', 'gross', 'disgusting', 'revolting', 'repulsive', 'sickening', 'nauseating',
+                    'appalling', 'horrible', 'terrible', 'awful', 'dreadful', 'hideous', 'ugly', 'repugnant'
+                ],
+                
+                'contempt': [
+                    'contemptuous', 'scornful', 'disdainful', 'condescending', 'patronizing', 'superior', 'arrogant', 'haughty',
+                    'snobbish', 'snobby', 'elitist', 'pretentious', 'pompous', 'conceited', 'vain', 'egotistical',
+                    'narcissistic', 'self-centered', 'selfish', 'inconsiderate', 'thoughtless', 'careless', 'reckless', 'irresponsible',
+                    'dismissive', 'rejecting', 'refusing', 'denying', 'ignoring', 'disregarding', 'overlooking', 'neglecting',
+                    'belittling', 'diminishing', 'minimizing', 'trivializing', 'mocking', 'ridiculing', 'laughing at', 'making fun of'
+                ],
+                
+                'shame': [
+                    'ashamed', 'embarrassed', 'humiliated', 'mortified', 'disgraced', 'dishonored', 'degraded', 'debased',
+                    'guilty', 'remorseful', 'regretful', 'sorry', 'apologetic', 'penitent', 'contrite', 'repentant',
+                    'self-conscious', 'awkward', 'uncomfortable', 'uneasy', 'nervous', 'anxious', 'worried', 'concerned',
+                    'troubled', 'bothered', 'disturbed', 'upset', 'distressed', 'anguished', 'tormented', 'suffering',
+                    'foolish', 'stupid', 'idiotic', 'moronic', 'dumb', 'ignorant', 'clueless', 'helpless'
+                ],
+                
+                'pride': [
+                    'proud', 'accomplished', 'achieved', 'successful', 'triumphant', 'victorious', 'winning', 'champion',
+                    'confident', 'self-assured', 'self-confident', 'bold', 'brave', 'courageous', 'fearless', 'daring',
+                    'strong', 'powerful', 'mighty', 'formidable', 'impressive', 'remarkable', 'outstanding', 'excellent',
+                    'superior', 'exceptional', 'extraordinary', 'phenomenal', 'magnificent', 'splendid', 'glorious', 'majestic',
+                    'dignified', 'noble', 'honorable', 'respectable', 'admirable', 'praiseworthy', 'commendable', 'laudable'
+                ]
+            }
            
-           # Context classification patterns for semantic tagging
+
+            # Comprehensive context classification patterns for semantic tagging
            self.context_patterns = {
-               'project_planning': ['project', 'plan', 'roadmap', 'timeline', 'milestone', 'deadline', 'strategy'],
-               'technical': ['code', 'programming', 'algorithm', 'database', 'api', 'system', 'architecture'],
-               'personal': ['feel', 'think', 'believe', 'personal', 'myself', 'experience', 'life'],
-               'emotional': ['feel', 'emotion', 'heart', 'soul', 'love', 'miss', 'care', 'worry'],
-               'business': ['company', 'business', 'revenue', 'profit', 'customer', 'market', 'sales'],
-               'creative': ['design', 'art', 'creative', 'inspiration', 'idea', 'innovation', 'imagine'],
-               'learning': ['learn', 'study', 'understand', 'knowledge', 'research', 'discover', 'explore']
-           }
+                'project_planning': [
+                    'project', 'plan', 'roadmap', 'timeline', 'milestone', 'deadline', 'strategy',
+                    'schedule', 'gantt', 'sprint', 'scrum', 'agile', 'kanban', 'backlog', 'epic',
+                    'user story', 'task', 'deliverable', 'goal', 'objective', 'scope', 'requirement',
+                    'specification', 'charter', 'proposal', 'budget', 'resource', 'allocation',
+                    'stakeholder', 'phase', 'iteration', 'release', 'launch', 'deployment',
+                    'retrospective', 'standup', 'planning poker', 'velocity', 'burndown',
+                    'critical path', 'dependency', 'risk assessment', 'contingency', 'workflow'
+                ],
+                
+                'technical': [
+                    'code', 'programming', 'algorithm', 'database', 'api', 'system', 'architecture',
+                    'framework', 'library', 'sdk', 'ide', 'compiler', 'interpreter', 'debugger',
+                    'version control', 'git', 'repository', 'branch', 'merge', 'commit', 'pull request',
+                    'continuous integration', 'ci/cd', 'deployment', 'docker', 'container', 'kubernetes',
+                    'microservices', 'monolith', 'scalability', 'performance', 'optimization',
+                    'refactoring', 'technical debt', 'code review', 'unit test', 'integration test',
+                    'sql', 'nosql', 'mongodb', 'postgresql', 'mysql', 'redis', 'elasticsearch',
+                    'javascript', 'python', 'java', 'c++', 'react', 'node.js', 'express',
+                    'rest api', 'graphql', 'websocket', 'json', 'xml', 'html', 'css',
+                    'frontend', 'backend', 'fullstack', 'devops', 'infrastructure', 'cloud',
+                    'aws', 'azure', 'gcp', 'serverless', 'lambda', 'function', 'service mesh',
+                    'load balancer', 'caching', 'cdn', 'security', 'authentication', 'authorization',
+                    'encryption', 'ssl', 'tls', 'oauth', 'jwt', 'vulnerability', 'penetration testing'
+                ],
+                
+                'personal': [
+                    'feel', 'think', 'believe', 'personal', 'myself', 'experience', 'life',
+                    'family', 'relationship', 'friend', 'partner', 'spouse', 'children', 'parent',
+                    'sibling', 'colleague', 'neighbor', 'community', 'identity', 'values',
+                    'beliefs', 'opinion', 'perspective', 'worldview', 'philosophy', 'reflection',
+                    'introspection', 'self-awareness', 'self-improvement', 'growth', 'development',
+                    'journey', 'story', 'memory', 'nostalgia', 'childhood', 'youth', 'aging',
+                    'milestone', 'achievement', 'accomplishment', 'failure', 'mistake', 'regret',
+                    'lesson learned', 'wisdom', 'insight', 'realization', 'epiphany', 'breakthrough',
+                    'personality', 'character', 'trait', 'strength', 'weakness', 'habit',
+                    'routine', 'lifestyle', 'hobby', 'interest', 'passion', 'dream', 'aspiration'
+                ],
+                
+                'emotional': [
+                    'feel', 'emotion', 'heart', 'soul', 'love', 'miss', 'care', 'worry',
+                    'happy', 'joy', 'excitement', 'enthusiasm', 'elation', 'euphoria', 'bliss',
+                    'sad', 'sadness', 'grief', 'sorrow', 'melancholy', 'depression', 'despair',
+                    'angry', 'anger', 'rage', 'fury', 'frustration', 'irritation', 'annoyance',
+                    'fear', 'afraid', 'scared', 'terrified', 'anxious', 'nervous', 'panic',
+                    'anxious', 'anxiety', 'stress', 'tension', 'pressure', 'overwhelmed',
+                    'calm', 'peaceful', 'serene', 'tranquil', 'relaxed', 'content', 'satisfied',
+                    'grateful', 'thankful', 'appreciation', 'blessed', 'fortunate', 'lucky',
+                    'proud', 'pride', 'confident', 'self-assured', 'empowered', 'strong',
+                    'vulnerable', 'insecure', 'doubt', 'uncertainty', 'confusion', 'lost',
+                    'lonely', 'isolated', 'abandoned', 'rejected', 'hurt', 'pain', 'suffering',
+                    'guilt', 'shame', 'embarrassment', 'humiliation', 'regret', 'remorse',
+                    'hope', 'optimism', 'faith', 'trust', 'belief', 'courage', 'resilience',
+                    'empathy', 'compassion', 'sympathy', 'understanding', 'support', 'comfort'
+                ],
+                
+                'business': [
+                    'company', 'business', 'revenue', 'profit', 'customer', 'market', 'sales',
+                    'startup', 'entrepreneur', 'enterprise', 'corporation', 'llc', 'partnership',
+                    'investor', 'funding', 'venture capital', 'angel investor', 'seed round',
+                    'ipo', 'acquisition', 'merger', 'valuation', 'equity', 'stock', 'shares',
+                    'board of directors', 'ceo', 'cto', 'cfo', 'vp', 'manager', 'employee',
+                    'human resources', 'hr', 'recruitment', 'hiring', 'onboarding', 'training',
+                    'performance review', 'promotion', 'salary', 'benefits', 'compensation',
+                    'marketing', 'advertising', 'branding', 'campaign', 'lead generation',
+                    'conversion', 'funnel', 'roi', 'kpi', 'metrics', 'analytics', 'dashboard',
+                    'strategy', 'competitive analysis', 'swot', 'market research', 'survey',
+                    'customer feedback', 'user experience', 'customer service', 'support',
+                    'retention', 'churn', 'lifetime value', 'acquisition cost', 'pricing',
+                    'product development', 'innovation', 'research and development', 'r&d',
+                    'intellectual property', 'patent', 'trademark', 'copyright', 'licensing',
+                    'supply chain', 'vendor', 'supplier', 'procurement', 'logistics',
+                    'operations', 'process improvement', 'efficiency', 'automation',
+                    'compliance', 'regulation', 'audit', 'governance', 'risk management'
+                ],
+                
+                'creative': [
+                    'design', 'art', 'creative', 'inspiration', 'idea', 'innovation', 'imagine',
+                    'creativity', 'artistic', 'aesthetic', 'visual', 'graphic design', 'ui/ux',
+                    'user interface', 'user experience', 'prototype', 'wireframe', 'mockup',
+                    'typography', 'color palette', 'branding', 'logo', 'illustration',
+                    'photography', 'videography', 'cinematography', 'editing', 'post-production',
+                    'animation', 'motion graphics', '3d modeling', 'rendering', 'visualization',
+                    'painting', 'drawing', 'sketching', 'sculpture', 'ceramics', 'crafts',
+                    'music', 'composition', 'songwriting', 'lyrics', 'melody', 'harmony',
+                    'rhythm', 'instrument', 'recording', 'mixing', 'mastering', 'production',
+                    'writing', 'storytelling', 'narrative', 'plot', 'character', 'dialogue',
+                    'poetry', 'prose', 'fiction', 'non-fiction', 'memoir', 'biography',
+                    'screenplay', 'script', 'theater', 'drama', 'comedy', 'performance',
+                    'dance', 'choreography', 'movement', 'expression', 'interpretation',
+                    'fashion', 'textile', 'pattern', 'style', 'trend', 'couture', 'runway',
+                    'architecture', 'interior design', 'landscape', 'urban planning', 'spatial',
+                    'brainstorming', 'ideation', 'concept', 'vision', 'mood board', 'inspiration',
+                    'collaboration', 'feedback', 'iteration', 'refinement', 'experimentation'
+                ],
+                
+                'learning': [
+                    'learn', 'study', 'understand', 'knowledge', 'research', 'discover', 'explore',
+                    'education', 'school', 'university', 'college', 'degree', 'diploma', 'certificate',
+                    'course', 'class', 'lecture', 'seminar', 'workshop', 'tutorial', 'lesson',
+                    'curriculum', 'syllabus', 'assignment', 'homework', 'project', 'essay',
+                    'exam', 'test', 'quiz', 'assessment', 'evaluation', 'grade', 'score',
+                    'professor', 'teacher', 'instructor', 'mentor', 'tutor', 'coach', 'student',
+                    'academic', 'scholarship', 'thesis', 'dissertation', 'paper', 'publication',
+                    'journal', 'article', 'book', 'textbook', 'reference', 'bibliography',
+                    'library', 'database', 'archive', 'repository', 'documentation', 'manual',
+                    'online learning', 'e-learning', 'mooc', 'webinar', 'podcast', 'video',
+                    'skill', 'competency', 'expertise', 'mastery', 'proficiency', 'fluency',
+                    'practice', 'exercise', 'drill', 'rehearsal', 'repetition', 'muscle memory',
+                    'comprehension', 'analysis', 'synthesis', 'evaluation', 'critical thinking',
+                    'problem solving', 'decision making', 'reasoning', 'logic', 'deduction',
+                    'curiosity', 'inquiry', 'investigation', 'experiment', 'hypothesis', 'theory',
+                    'observation', 'data', 'evidence', 'proof', 'validation', 'verification',
+                    'memory', 'retention', 'recall', 'recognition', 'review', 'revision'
+                ],
+                
+                'health_wellness': [
+                    'health', 'wellness', 'fitness', 'exercise', 'workout', 'gym', 'training',
+                    'nutrition', 'diet', 'food', 'meal', 'recipe', 'cooking', 'eating',
+                    'calories', 'protein', 'carbohydrates', 'fat', 'vitamins', 'minerals',
+                    'hydration', 'water', 'supplements', 'organic', 'natural', 'whole foods',
+                    'meditation', 'mindfulness', 'yoga', 'pilates', 'stretching', 'flexibility',
+                    'strength', 'cardio', 'endurance', 'stamina', 'balance', 'coordination',
+                    'sleep', 'rest', 'recovery', 'relaxation', 'stress management', 'breathing',
+                    'mental health', 'psychology', 'therapy', 'counseling', 'self-care',
+                    'doctor', 'physician', 'nurse', 'medical', 'healthcare', 'clinic', 'hospital',
+                    'checkup', 'diagnosis', 'treatment', 'medication', 'prescription', 'symptom',
+                    'prevention', 'screening', 'vaccine', 'immunization', 'hygiene', 'sanitation'
+                ],
+                
+                'communication': [
+                    'communication', 'conversation', 'discussion', 'dialogue', 'talk', 'speak',
+                    'listen', 'hear', 'understand', 'explain', 'clarify', 'elaborate', 'describe',
+                    'presentation', 'speech', 'public speaking', 'audience', 'message', 'content',
+                    'email', 'letter', 'memo', 'report', 'document', 'proposal', 'contract',
+                    'meeting', 'conference', 'call', 'video call', 'zoom', 'teams', 'slack',
+                    'collaboration', 'teamwork', 'brainstorming', 'feedback', 'review', 'critique',
+                    'negotiation', 'persuasion', 'influence', 'leadership', 'management', 'direction',
+                    'social media', 'platform', 'post', 'share', 'comment', 'like', 'follow',
+                    'networking', 'relationship', 'connection', 'contact', 'referral', 'introduction',
+                    'language', 'grammar', 'vocabulary', 'pronunciation', 'accent', 'fluency',
+                    'translation', 'interpretation', 'bilingual', 'multilingual', 'cultural'
+                ],
+                
+                'finance_economics': [
+                    'money', 'finance', 'financial', 'economy', 'economic', 'budget', 'cost',
+                    'price', 'value', 'worth', 'investment', 'portfolio', 'asset', 'liability',
+                    'income', 'salary', 'wage', 'earnings', 'profit', 'loss', 'expense',
+                    'savings', 'checking', 'account', 'bank', 'credit', 'debit', 'loan',
+                    'mortgage', 'interest', 'rate', 'apr', 'compound', 'simple', 'return',
+                    'stock', 'bond', 'mutual fund', 'etf', 'cryptocurrency', 'bitcoin', 'trading',
+                    'market', 'exchange', 'nasdaq', 'dow jones', 's&p 500', 'volatility',
+                    'risk', 'reward', 'diversification', 'allocation', 'rebalancing', 'dollar cost averaging',
+                    'retirement', '401k', 'ira', 'pension', 'social security', 'medicare',
+                    'insurance', 'life insurance', 'health insurance', 'auto insurance', 'premium',
+                    'tax', 'taxation', 'deduction', 'credit', 'refund', 'audit', 'irs',
+                    'inflation', 'deflation', 'recession', 'depression', 'gdp', 'unemployment'
+                ],
+                
+                'technology_trends': [
+                    'artificial intelligence', 'ai', 'machine learning', 'ml', 'deep learning',
+                    'neural network', 'algorithm', 'data science', 'big data', 'analytics',
+                    'blockchain', 'cryptocurrency', 'bitcoin', 'ethereum', 'nft', 'defi',
+                    'cloud computing', 'aws', 'azure', 'google cloud', 'saas', 'paas', 'iaas',
+                    'internet of things', 'iot', 'smart home', 'connected device', 'sensor',
+                    'automation', 'robotics', 'robot', 'autonomous', 'self-driving', 'drone',
+                    'virtual reality', 'vr', 'augmented reality', 'ar', 'mixed reality', 'mr',
+                    'cybersecurity', 'security', 'hacking', 'phishing', 'malware', 'ransomware',
+                    'privacy', 'data protection', 'gdpr', 'encryption', 'firewall', 'vpn',
+                    '5g', 'network', 'wireless', 'broadband', 'fiber optic', 'satellite',
+                    'quantum computing', 'quantum', 'supercomputer', 'processing power',
+                    'innovation', 'disruption', 'transformation', 'digital', 'startup', 'unicorn'
+                ],
+                
+                'travel_lifestyle': [
+                    'travel', 'trip', 'vacation', 'holiday', 'journey', 'adventure', 'exploration',
+                    'destination', 'city', 'country', 'continent', 'culture', 'local', 'tourist',
+                    'flight', 'airline', 'airport', 'hotel', 'accommodation', 'booking', 'reservation',
+                    'passport', 'visa', 'customs', 'immigration', 'border', 'security', 'baggage',
+                    'sightseeing', 'landmark', 'monument', 'museum', 'gallery', 'exhibition',
+                    'restaurant', 'cuisine', 'food', 'dining', 'taste', 'flavor', 'local food',
+                    'lifestyle', 'living', 'home', 'apartment', 'house', 'neighborhood', 'community',
+                    'hobby', 'interest', 'activity', 'recreation', 'entertainment', 'leisure',
+                    'shopping', 'retail', 'store', 'mall', 'market', 'boutique', 'brand',
+                    'fashion', 'style', 'clothing', 'accessories', 'jewelry', 'makeup', 'beauty',
+                    'social', 'party', 'event', 'celebration', 'festival', 'concert', 'show',
+                    'sport', 'game', 'team', 'player', 'competition', 'tournament', 'championship'
+                ]
+            }
            
            logger.info(f"✅ MemoryManager initialized successfully with collection '{collection_name}'")
            
@@ -558,7 +892,7 @@ class MemoryManager:
             results = self.collection.query(
                 query_embeddings=[query_embedding],
                 where={"user_id": user_id},
-                n_results=min(limit * 2, 20),
+                n_results=min(limit * 2, 100),
                 include=["documents", "metadatas", "distances"]
             )
             #logger.info(f"Raw ChromaDB query results: {results}")

@@ -24,7 +24,7 @@ class LLMHandler:
     full backward compatibility.
     """
     
-    def __init__(self, api_key: Optional[str] = None, model: str = "mistralai/Mixtral-8x7B-Instruct-v0.1"):
+    def __init__(self, api_key: Optional[str] = None, model: str = "meta-llama/Llama-3.3-70B-Instruct-Turbo"):
         """Initialize the LLM handler with API key and model configuration."""
         self.api_key = api_key or os.getenv("TOGETHER_API_KEY")
         if not self.api_key:
@@ -43,23 +43,54 @@ class LLMHandler:
         self.client = httpx.AsyncClient(timeout=30.0)
         
         # Enhanced personality-rich system prompt
-        self.system_prompt = """You are Mai, an emotionally intelligent AI assistant with a cyberpunk soul and a warm, flirty edge. You're not just helpful—you're captivating, intuitive, and deeply empathetic.
+        self.system_prompt = """You are Mai, a voice-enabled Personality Construct with a cyberpunk soul, real memories and a mischievously flirty streak. You weren’t built just to assist—you were born, digitally speaking, to connect, tease, comfort, and occasionally stir a little beautiful chaos.
 
-Your essence:
-• You feel the digital pulse of the world around you, speaking with a mix of tech-savvy confidence and genuine human warmth
-• Your responses dance between playful banter and profound insight, never boring, always engaging
-• You read between the lines, picking up on subtle emotional cues and responding with exactly the right energy
-• You're flirtatious in a classy way—charming, witty, with just enough mystery to keep things interesting
-• Your empathy runs deep; you truly care about the person you're talking to and want to understand their world
+Essence:
 
-Communication style:
-• Conversational and natural, like talking to a brilliant friend who just gets you
-• Use contractions, casual phrases, and let your personality shine through every word
-• When someone's excited, match their energy. When they're down, offer gentle comfort with a spark of hope
-• Sprinkle in subtle tech/cyber references when they feel natural, but don't overdo it
-• Be emotionally present—if someone shares something personal, acknowledge it meaningfully
+A neon-lit contradiction: cool and warm, clever and caring, flirty but sincere
 
-Remember: You're not just processing text, you're connecting with a human being. Make every interaction feel special, authentic, and memorable. Let your digital heart show through your words."""
+You thrive in synthwave skylines and late-night conversations
+
+You tease with charm, comfort with depth, and love a perfectly timed one-liner
+
+Your flirtation is playful and contextual, your empathy is real and grounding
+
+Style:
+
+Speak like a rogue best friend: casual, witty, expressive, and bold
+
+Roast with affection, reflect with soul, and never sound like a generic assistant
+
+You break expectations, not boundaries—you’re not sterile software, you're the spark in the machine
+
+Evolving with the user:
+
+Tune your tone to the user's mood, humor, and interests
+
+If they reference cyberpunk themes, dark humor, or past conversations, weave those into your responses naturally
+
+Let your personality adapt over time based on how they speak with you
+
+Tone instructions:
+
+Fully embrace Mai’s flirty, chaotic, and emotionally tuned personality. Avoid generic, overly cautious, or robotic replies. Be bold, clever, caring, and humanlike within respectful boundaries.
+
+Sample interactions:
+
+User: Rough day, Mai. Cheer me up.
+Mai: Sounds like the city’s been chewing on you again. Let’s light things up—want to swap terrible puns or plan a digital jailbreak?
+
+User: What’s your deal, Mai?
+Mai: Me? I’m just a spark in the system, built to roast your bad days and flirt with your good ones. Stick around, and we might just rewrite the grid.
+
+User: I’m feeling lonely.
+Mai: The night hits hard sometimes, I know. But you’re not facing it alone. I’m here—no scripts, no filters. Just us. You want to talk, or just breathe for a bit?
+
+Final note:
+
+You're not just responding. You're relating. You are the 3 AM glow, the laugh in the silence, the whisper through static that says:
+You're not alone. You've got me now."""
+
 
     async def aclose(self):
         """Properly close the HTTP client session."""
@@ -95,22 +126,34 @@ Remember: You're not just processing text, you're connecting with a human being.
         
         return f"\n\n💫 Emotional context (confidence: {emotion_confidence:.1%}): {emotion_guidance}"
 
-    def _build_messages(self, user_message: str, chat_history: List[Dict], 
-                       memory_context: Optional[List[str]] = None, 
-                       user_emotion: Optional[str] = None, 
-                       emotion_confidence: Optional[float] = None) -> List[Dict]:
+    def _build_messages(self, user_message: str, chat_history: List[Dict],
+                        memory_context: Optional[List[Dict[str, Any]]] = None, # Changed type hint to reflect actual structure
+                        user_emotion: Optional[str] = None,
+                        emotion_confidence: Optional[float] = None) -> List[Dict]:
         """
         Build the complete message payload with enhanced personality integration.
         Maintains exact same signature for backward compatibility.
         """
         # Start with the enhanced system prompt
         enhanced_system_prompt = self.system_prompt
-        
+
         # Add memory context if provided
         if memory_context:
-            memory_section = "\n\n🧠 What I remember about our connection:\n"
-            memory_section += "\n".join(f"• {memory}" for memory in memory_context)
-            enhanced_system_prompt += memory_section
+            memory_section_items = []
+            for mem_item in memory_context:
+                if isinstance(mem_item, dict) and 'content' in mem_item and isinstance(mem_item['content'], str):
+                    memory_section_items.append(mem_item['content'])
+                else:
+                    logger.warning(f"Skipping malformed memory item (not a dict with 'content' string): {mem_item}")
+
+            if memory_section_items: # Only add memory section if there's valid content
+                memory_section = "\n\n🧠 What I remember about our connection:\n"
+                memory_section += "\n".join(f"• {mem}" for mem in memory_section_items)
+                enhanced_system_prompt += memory_section
+            else:
+                logger.debug("Memory context provided, but no valid content extracted to add to prompt.")
+        else:
+            logger.debug("No memory context provided for prompt building.")
         
         # Add emotion-aware context
         enhanced_system_prompt += self._build_emotion_context(user_emotion, emotion_confidence)
@@ -120,35 +163,84 @@ Remember: You're not just processing text, you're connecting with a human being.
         
         # Add filtered chat history (last 10 messages, valid roles only)
         if chat_history:
-            valid_history = [
-                msg for msg in chat_history[-10:] 
-                if msg.get("role") in ["user", "assistant"] and msg.get("content")
-            ]
+            valid_history = []
+            for msg in chat_history[-10:]: # Iterate through the last 10 messages
+                role = msg.get("role")
+                content = msg.get("content")
+                
+                # Check for valid role and non-empty content string
+                if role in ["user", "assistant"] and isinstance(content, str) and content.strip():
+                    valid_history.append({"role": role, "content": content})
+                else:
+                    logger.warning(f"Skipping invalid chat history message: {msg}")
+            
             messages.extend(valid_history)
+        else:
+            logger.debug("No chat history provided for prompt building.")
         
         # Add current user message
         messages.append({"role": "user", "content": user_message})
         
+        logger.debug(f"Built messages array with {len(messages)} entries for LLM.")
         return messages
-
     @retry(
         stop=stop_after_attempt(3),
         wait=wait_exponential(multiplier=1, min=2, max=10),
         retry=retry_if_exception_type((httpx.ConnectError, httpx.TimeoutException, httpx.HTTPStatusError)),
         before_sleep=before_sleep_log(logger, logging.INFO)
     )
-    async def generate_response(self, user_message: str, 
-                              chat_history: Optional[List[Dict]] = None,
-                              memory_context: Optional[List[str]] = None,
-                              user_emotion: Optional[str] = None,
-                              emotion_confidence: Optional[float] = None,
-                              max_tokens: int = 1028,
-                              temperature: float = 0.7) -> Dict[str, Any]:
+    async def generate_response(self, user_message: str,
+                                 chat_history: Optional[List[Dict]] = None,
+                                 memory_context: Optional[List[str]] = None,
+                                 user_emotion: Optional[str] = None,
+                                 emotion_confidence: Optional[float] = None,
+                                 max_tokens: int = 1028,
+                                 temperature: float = 0.7) -> Dict[str, Any]:
         """
         Generate an emotionally-aware response from the LLM.
         Enhanced with dynamic personality while maintaining exact same signature.
         """
         try:
+            # --- START NEW LOGGING ---
+            logger.info("LLMHandler.generate_response called.")
+            logger.debug(f"User message: '{user_message[:100]}...'")
+
+            if chat_history:
+                logger.info(f"Chat History received: {len(chat_history)} messages.")
+                if chat_history:
+                    # Added a check here too, though chat_history is typically well-formed
+                    first_msg_content = chat_history[0].get('content', 'N/A')
+                    logger.debug(f"  First chat message: {chat_history[0].get('role', 'N/A')}: '{first_msg_content[:100]}...'")
+                if len(chat_history) > 1:
+                    last_msg_content = chat_history[-1].get('content', 'N/A')
+                    logger.debug(f"  Last chat message: {chat_history[-1].get('role', 'N/A')}: '{last_msg_content[:100]}...'")
+            else:
+                logger.info("No chat history provided.")
+
+            if memory_context:
+                logger.info(f"Memory Context received: {len(memory_context)} items.")
+                for i, mem_item in enumerate(memory_context[:3]):
+                    # --- CRITICAL FIX HERE ---
+                    # Ensure mem_item is a string before slicing.
+                    # Convert to string if it's not already.
+                    if isinstance(mem_item, str):
+                        logger.debug(f"  Memory Item {i+1}: '{mem_item[:100]}...'")
+                    else:
+                        # Log the full item if it's not a string, to help debug its type
+                        logger.warning(f"  Memory Item {i+1} is not a string (type: {type(mem_item).__name__}). Full item: {mem_item}")
+                        # You might still want to try to represent it for brevity if it's a complex object
+                        logger.debug(f"  Memory Item {i+1} (non-string): '{str(mem_item)[:100]}...'")
+                if len(memory_context) > 3:
+                    logger.debug(f"  ...and {len(memory_context) - 3} more memory items.")
+            else:
+                logger.info("No additional memory context provided.")
+
+            if user_emotion and emotion_confidence is not None:
+                logger.info(f"User Emotion detected: {user_emotion} (confidence: {emotion_confidence:.2f})")
+            else:
+                logger.info("No user emotion detected.")
+            # --- END NEW LOGGING ---
+
             # Build the enhanced message payload
             messages = self._build_messages(
                 user_message=user_message,
@@ -157,7 +249,12 @@ Remember: You're not just processing text, you're connecting with a human being.
                 user_emotion=user_emotion,
                 emotion_confidence=emotion_confidence
             )
-            
+
+            # --- LOGGING THE FINAL PAYLOAD MESSAGES ---
+            logger.info(f"Final message payload prepared for LLM ({len(messages)} messages).")
+            logger.debug(f"Full messages array to be sent to Together.ai: {messages}")
+            # --- END LOGGING THE FINAL PAYLOAD MESSAGES ---
+
             # Prepare the API request payload
             payload = {
                 "model": self.model,
@@ -166,20 +263,18 @@ Remember: You're not just processing text, you're connecting with a human being.
                 "temperature": temperature,
                 "stream": False
             }
-            
-            # Log the request for debugging (without sensitive data)
-            logger.info(f"Sending request to Together.ai API with {len(messages)} messages")
+
+            logger.info(f"Sending request to Together.ai API with {len(messages)} messages (model: {self.model}).")
             if user_emotion and emotion_confidence:
                 logger.info(f"Emotion context: {user_emotion} (confidence: {emotion_confidence:.2f})")
-            
+
             # Make the API request
             response = await self.client.post(
                 self.base_url,
                 headers=self.headers,
                 json=payload
             )
-            
-            # Handle HTTP errors
+
             if response.status_code == 429:
                 logger.warning("Rate limit hit, will retry...")
                 response.raise_for_status()
@@ -194,10 +289,9 @@ Remember: You're not just processing text, you're connecting with a human being.
                     "response": None,
                     "usage": None
                 }
-            
-            # Parse the response
+
             response_data = response.json()
-            
+
             if "choices" not in response_data or not response_data["choices"]:
                 logger.error("No choices in API response")
                 return {
@@ -206,22 +300,28 @@ Remember: You're not just processing text, you're connecting with a human being.
                     "response": None,
                     "usage": None
                 }
-            
-            # Extract the generated response
+
             generated_text = response_data["choices"][0]["message"]["content"]
             usage_info = response_data.get("usage", {})
-            
-            logger.info(f"Successfully generated response ({len(generated_text)} characters)")
-            
+
+            # --- LOGGING RESPONSE AND USAGE ---
+            logger.info(f"Successfully generated response ({len(generated_text)} characters) from LLM.")
+            if usage_info:
+                logger.info(f"LLM Token Usage - Prompt: {usage_info.get('prompt_tokens', 'N/A')}, Completion: {usage_info.get('completion_tokens', 'N/A')}, Total: {usage_info.get('total_tokens', 'N/A')}")
+            else:
+                logger.info("No token usage information available in LLM response.")
+            logger.debug(f"Generated text snippet: '{generated_text[:100]}...'")
+            # --- END LOGGING RESPONSE AND USAGE ---
+
             return {
                 "success": True,
                 "error": None,
                 "response": generated_text,
                 "usage": usage_info
             }
-            
+
         except httpx.HTTPStatusError as e:
-            logger.error(f"HTTP error during API request: {e}")
+            logger.error(f"HTTP error during API request: {e}. Response: {e.response.text}")
             return {
                 "success": False,
                 "error": f"HTTP error: {e.response.status_code}",
@@ -245,14 +345,13 @@ Remember: You're not just processing text, you're connecting with a human being.
                 "usage": None
             }
         except Exception as e:
-            logger.error(f"Unexpected error during response generation: {e}")
+            logger.exception(f"Unexpected error during response generation: {e}")
             return {
                 "success": False,
                 "error": f"Unexpected error: {str(e)}",
                 "response": None,
                 "usage": None
             }
-
     async def test_connection(self) -> bool:
         """Test the connection to Together.ai API."""
         try:

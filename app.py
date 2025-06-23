@@ -263,7 +263,7 @@ async def chat_endpoint(
         memory_context = memory_manager.retrieve_memories(
             query=user_message,
             user_id=user_id,
-            limit=5
+            limit=10
         )
         logger.info(f"Retrieved {len(memory_context)} relevant memories for user {user_id}.")
 
@@ -399,7 +399,7 @@ async def voice_chat_endpoint(
         memory_context = memory_manager.retrieve_memories(
             query=user_input,
             user_id=user_id,
-            limit=5 # Changed from max_memories to limit
+            limit=10 # Changed from max_memories to limit
         )
         logger.info(f"Retrieved {len(memory_context)} relevant memories for user {user_id} for voice interaction.")
 
@@ -480,6 +480,172 @@ async def voice_chat_endpoint(
         if temp_audio_file_path_str and os.path.exists(temp_audio_file_path_str):
             os.remove(temp_audio_file_path_str)
             logger.info(f"Removed temporary audio file: {temp_audio_file_path_str}")
+
+@app.post("/text_to_voice_chat")
+async def text_to_voice_chat_endpoint(
+    request: Request,
+    message: Dict[str, str] # Expecting a JSON body with 'message'
+):
+    """Handles text-based chat interactions but responds with speech."""
+    global llm_handler, memory_manager, voice_interface
+    if llm_handler is None or memory_manager is None or voice_interface is None:
+        logger.error("Mai components not initialized for /text_to_voice_chat route.")
+        raise HTTPException(status_code=503, detail='Mai services are not ready. Please try again or check server logs.')
+
+    # No temp_audio_file_path here anymore, as we're not serving the file directly from here.
+    user_id = await get_user_id(request)
+    session_chat_history = await get_chat_history(request)
+
+    try:
+        user_message = message.get('message', '').strip()
+        if not user_message:
+            logger.warning(f"User {user_id}: Received text_to_voice_chat request with no message data.")
+            raise HTTPException(status_code=400, detail='No message provided')
+
+        # --- User Name Association Logic (Same as other endpoints) ---
+        user_name_for_storage: Optional[str] = None
+        specific_rishi_user_id = "6653d9f1-b272-434f-8f2b-b0a96c35a1d2"
+
+        if user_id == specific_rishi_user_id:
+            user_name_for_storage = "Rishi"
+            logger.debug(f"Assigned user_name 'Rishi' to user_id: {user_id} for text-to-voice chat.")
+        # --- End User Name Association Logic ---
+
+        logger.info(f"User {user_id}: Processing text message for voice response: '{user_message[:70]}{'...' if len(user_message) > 70 else ''}'")
+
+        # Analyze sentiment of the user message
+        user_emotion, emotion_confidence = await analyze_sentiment(user_message)
+        logger.info(f"User {user_id} detected emotion: {user_emotion} (confidence: {emotion_confidence:.2f})")
+
+        # Get memory context from the MemoryManager (ChromaDB)
+        logger.debug(f"User {user_id}: Retrieving relevant memories for text-to-voice interaction...")
+        memory_context = memory_manager.retrieve_memories(
+            query=user_message,
+            user_id=user_id,
+            limit=10
+        )
+        logger.info(f"User {user_id}: Retrieved {len(memory_context)} relevant memories.")
+
+        # Step 1: Generate text response using LLM
+        logger.debug(f"User {user_id}: Generating text response using LLM for text-to-voice...")
+        llm_response = await llm_handler.generate_response(
+            user_message=user_message,
+            chat_history=session_chat_history, # Pass the session's chat history
+            memory_context=memory_context,     # Pass the retrieved memory context
+            user_emotion=user_emotion,         # Pass emotion to the LLMHandler
+            emotion_confidence=emotion_confidence, # Pass confidence too
+        )
+
+        if not llm_response['success']:
+            logger.error(f"LLM generation failed for user {user_id} in text-to-voice: {llm_response.get('error', 'Unknown error')}")
+            raise HTTPException(
+                status_code=500,
+                detail='Failed to generate response',
+                headers={"X-Mai-Error": llm_response.get('response', 'Sorry, I encountered an error generating a text response.')}
+            )
+
+        mai_response_text = llm_response['response']
+        logger.info(f"User {user_id}: Mai text response: '{mai_response_text[:70]}{'...' if len(mai_response_text) > 70 else ''}'")
+
+        # Analyze sentiment of the AI response (for storage and potential TTS tone)
+        ai_emotion, ai_emotion_confidence = await analyze_sentiment(mai_response_text)
+        logger.info(f"User {user_id}: AI detected emotion for text-to-voice: {ai_emotion} (confidence: {ai_emotion_confidence:.2f})")
+
+        # Step 2: Convert the LLM's text response to speech using generate_speech
+        logger.debug(f"User {user_id}: Converting text response to speech...")
+        
+        # Generate a unique filename for the audio output
+        unique_audio_filename = f"mai_response_{uuid.uuid4()}.mp3"
+        
+        # Call the existing generate_speech method
+        audio_full_path_str = await voice_interface.generate_speech(
+            text=mai_response_text,
+            filename=unique_audio_filename
+        )
+
+        if not audio_full_path_str:
+            logger.error(f"User {user_id}: Failed to generate audio for Mai's response.")
+            raise HTTPException(
+                status_code=500,
+                detail='Failed to generate speech.',
+                headers={"X-Mai-Response": "I'm sorry, I couldn't generate a voice response."}
+            )
+        
+        # We don't need to check audio_full_path.exists() here, as it will be checked by get_audio_response
+        # and the cleaning is handled by the get_audio_response endpoint.
+        audio_filename_for_frontend = Path(audio_full_path_str).name
+        logger.info(f"User {user_id}: Audio generated at: {audio_full_path_str}")
+
+        # Clean the AI response before storing in long-term memory
+        cleaned_mai_response = clean_mai_response(mai_response_text)
+
+        logger.debug(f"User {user_id}: Storing conversation in memory for text-to-voice...")
+        stored_memories = memory_manager.store_conversation(
+            user_message=user_message,
+            ai_response=cleaned_mai_response, # Store the cleaned response
+            user_id=user_id,
+            user_emotion=user_emotion,
+            user_emotion_confidence=emotion_confidence,
+            ai_emotion=ai_emotion,
+            user_name=user_name_for_storage
+        )
+        logger.info(f"User {user_id}: Stored {stored_memories} new memories from text-to-voice chat" + (f" ({user_name_for_storage})" if user_name_for_storage else ""))
+
+        # Update the session's chat history for short-term conversational context
+        await add_to_chat_history(request, 'user', user_message)
+        await add_to_chat_history(request, 'assistant', mai_response_text)
+
+        # Return JSON response with the audio filename
+        return JSONResponse({
+            "status": "success",
+            "user_input": user_message, # User's original text input
+            "mai_response": mai_response_text, # Mai's text response
+            "audio_filename": audio_filename_for_frontend, # Filename for frontend to play
+            "user_emotion": user_emotion,
+            "emotion_confidence": emotion_confidence,
+            "ai_emotion": ai_emotion,
+            "user_name": user_name_for_storage
+        })
+
+    except HTTPException:
+        raise # Re-raise FastAPI HTTPExceptions
+    except Exception as e:
+        logger.error(f"Unhandled error in text_to_voice_chat endpoint for user {user_id}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"An unexpected error occurred: {str(e)}")
+    # The finally block to delete the file is REMOVED from this endpoint.
+    # It will be handled by the /get_audio_response endpoint.
+
+
+# # --- NEW/MODIFIED /get_audio_response ENDPOINT ---
+# @router.get("/get_audio_response/{filename}")
+# async def get_audio_response(filename: str, background_tasks: BackgroundTasks):
+#     """
+#     Serves a temporary audio file and deletes it after sending.
+#     """
+#     global voice_interface # Ensure voice_interface is accessible
+
+#     if voice_interface is None:
+#         logger.error("VoiceInterface not initialized for /get_audio_response route.")
+#         raise HTTPException(status_code=503, detail='Mai services are not ready. Please try again or check server logs.')
+
+#     audio_output_dir = voice_interface.get_audio_output_dir()
+#     file_path = audio_output_dir / filename
+
+#     logger.info(f"Attempting to serve audio file: {file_path}")
+
+#     if not file_path.exists():
+#         logger.error(f"Audio file not found: {file_path.name}")
+#         raise HTTPException(status_code=404, detail="Audio file not found")
+
+#     # Add the cleanup task to be executed after the response is sent
+#     background_tasks.add_task(os.remove, file_path)
+#     logger.info(f"Added background task to delete file: {file_path.name}")
+
+#     return FileResponse(
+#         file_path,
+#         media_type="audio/mpeg", # Assuming MP3 output
+#         filename=filename
+#     )
 
 @app.get("/get_audio_response/{filename}")
 async def get_audio_response_endpoint(filename: str):
