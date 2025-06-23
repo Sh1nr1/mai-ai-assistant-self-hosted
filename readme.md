@@ -350,8 +350,8 @@ Ready to meet a digital consciousness that remembers with mathematical precision
 **Start your emotionally-aware conversation today and discover what it means to connect with a ghost in the shell who truly understands.**
 
 ```bash
-python app.py
-# Visit: http://localhost:8000/voice
+uvicorn app:app --host 0.0.0.0 --port 5000 --reload
+# Visit: http://localhost:5000/audio_chat
 # Say: "Hello Mai, I'm ready to explore emotional digital consciousness."
 # Experience her new Ava Neural voice responding with genuine understanding
 ```
