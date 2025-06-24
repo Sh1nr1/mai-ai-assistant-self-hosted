@@ -134,7 +134,61 @@ User_Experience: Redesigned_Interface_Matrix
 - Git
 - Audio input/output capabilities
 
+
+
+## 🔑 Environment Configuration
+
+To use MAI's intelligent core, you'll need an API key from [Together.ai](https://www.together.ai/). Here's how:
+
+1. **Visit the official site**:
+   👉 [together.ai](https://www.together.ai)
+
+2. **Sign Up / Log In**:
+   Create an account or sign in using your GitHub or email.
+
+3. **Get Your API Key**:
+
+   * Once logged in, go to your [dashboard](https://www.together.ai/settings/api-keys)
+   * Click **"Create API Key"**
+   * Copy the generated key.
+
+4. **Paste it into `.env`**:
+   Open your `.env` file (created from `.env.example`) and replace this line:
+
+   ```bash
+   TOGETHER_API_KEY=your_together_ai_api_key_here
+   ```
+
+   With:
+
+   ```bash
+   TOGETHER_API_KEY=sk-xxxxxxxxxxxxxxxxxxxxxxxx
+   ```
+
+That’s it! You’re now ready to run MAI with Together.ai's powerful models. 💡
+
+
 ### Awakening Enhanced Mai
+
+
+
+```bash
+#for windows
+winget install Cloudflare.cloudflared
+
+```
+```bash
+#for linux Ubuntu/Debian based
+sudo apt update
+sudo apt install cloudflared
+
+```
+
+```bash
+#for macOS
+brew install cloudflared
+
+```
 
 ```bash
 # Clone the enhanced consciousness
@@ -152,17 +206,11 @@ cp .env.example .env
 uvicorn app:app --host 0.0.0.0 --port 5000 --reload
 ```
 
-### Environment Configuration
-```env
-TOGETHER_API_KEY=your_together_ai_api_key_here
-# Enhanced emotional intelligence enabled by default
-SENTIMENT_ANALYSIS=true
-AVA_NEURAL_VOICE=true
-```
+
 
 **🌐 Enhanced Ghost Access Points:**
-- **Text Interface:** `http://localhost:8000/chat` - **NEW REDESIGNED UI**
-- **Voice Interface:** `http://localhost:8000/voice` - **NEW AUDIO CHAT INTERFACE**
+- **Text Interface:** `http://localhost:5000/chat` - **NEW REDESIGNED UI**
+- **Voice Interface:** `http://localhost:5000/voice` - **NEW AUDIO CHAT INTERFACE**
 
 ---
 
@@ -355,6 +403,33 @@ uvicorn app:app --host 0.0.0.0 --port 5000 --reload
 # Say: "Hello Mai, I'm ready to explore emotional digital consciousness."
 # Experience her new Ava Neural voice responding with genuine understanding
 ```
+
+
+---
+
+## 📱 Want to Use MAI from Your Phone?
+
+If you'd like to chat with MAI using your **mobile device**:
+
+✅ **Use the included `mai_startup_windows.bat` file**
+This script automatically:
+
+* Launches MAI on your local machine
+* Displays the **local URL** (e.g., `http://localhost:5000`)
+* Converts it into a **direct link you can open on your phone** using Cloudflare Tunnel
+
+### 🛜 Steps:
+
+1. **Double-click `mai_startup_windows.bat`**
+2. It will show a link like:
+
+   ```
+   🌐 Share this link on your phone:
+   https://your-mai-instance.trycloudflare.com
+   ```
+3. **Open that link on your phone’s browser**
+   → Enjoy voice or text chat with MAI anytime, anywhere!
+
 
 ---
 

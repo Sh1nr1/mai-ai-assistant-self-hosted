@@ -72,6 +72,7 @@ voice_interface: Optional[VoiceInterface] = None
 TOGETHER_API_KEY_DIRECT = os.getenv("TOGETHER_API_KEY")
 AUDIO_OUTPUT_DIR = Path("audio_output")
 AUDIO_OUTPUT_DIR.mkdir(exist_ok=True)
+FIXED_SINGLE_USER_ID: Optional[str] = "6653d9f1-b272-434f-8f2b-b0a96c35a1d2" #change the global variable to ur own user_id 
 
 # Define MAX_CHAT_HISTORY_LENGTH for session history trimming
 MAX_CHAT_HISTORY_LENGTH = 20 # Keep last 20 messages (10 turns) in session
@@ -172,7 +173,15 @@ app.mount("/audio_output", StaticFiles(directory=AUDIO_OUTPUT_DIR), name="audio_
 # --- Helper Functions ---
 
 async def get_user_id(request: Request) -> str:
-    """Retrieves or creates a user ID for the current session."""
+    """
+    Retrieves or creates a user ID for the current session.
+    If FIXED_SINGLE_USER_ID is set globally, it will always return that ID.
+    """
+    if FIXED_SINGLE_USER_ID:
+        # If a fixed user ID is defined, always use it
+        return FIXED_SINGLE_USER_ID
+    
+    # Fallback to session-based UUID generation if no fixed ID is set
     if 'user_id' not in request.session:
         request.session['user_id'] = str(uuid.uuid4())
         logger.info(f"Created new user session: {request.session['user_id']}")
@@ -799,5 +808,5 @@ async def custom_404_handler(request: Request, exc: HTTPException):
     logger.warning(f"404 Not Found: {request.url.path}")
     return templates.TemplateResponse("chat.html", {"request": request}, status_code=404)
 
-# To run this, save it as `main.py` (or `app.py`) and use uvicorn:
+# To run this, save it as `app.py` and use uvicorn:
 # uvicorn app:app --host 0.0.0.0 --port 5000 --reload

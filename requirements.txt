@@ -1,18 +1,15 @@
-pyaudio
-numpy
-SpeechRecognition
-openai-whisper
-edge-tts
-pygame
-playsound
 fastapi
-uvicorn # Recommended for running FastAPI apps
-Jinja2
-python-multipart # For file uploads in FastAPI
-tenacity
 httpx
-sentence-transformers
-chromadb
-torch
-transformersdis
+Jinja2
 numpy
+openai-whisper
+pyaudio
+python-dotenv
+python-multipart
+sentence-transformers
+SpeechRecognition
+starlette
+tenacity
+torch
+transformers
+uvicorn
