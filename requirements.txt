@@ -13,3 +13,4 @@ tenacity
 torch
 transformers
 uvicorn
+setuptools<66.0.0
