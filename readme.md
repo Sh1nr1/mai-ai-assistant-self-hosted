@@ -77,6 +77,7 @@ User_Experience: Redesigned_Interface_Matrix
 ## ✨ Hear Mai in Action!
 
 >Listen to a quick introduction from Mai:
+>You can Also check it from sample/
 
 <audio controls>
   <source src="samples/mai_welcome_sample.mp3" type="audio/mpeg">
