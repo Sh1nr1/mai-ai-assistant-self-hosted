@@ -536,6 +536,8 @@
             flex-direction: column;
             gap: clamp(0.75rem, 2vw, 1rem);
             flex-shrink: 0;
+            z-index: 10;
+            position: relative;
         }
 
         .record-section {
@@ -559,6 +561,7 @@
         .mic-container {
             position: relative;
             margin-bottom: clamp(1rem, 3vw, 1.5rem);
+            z-index: 10;
         }
 
         .mic-button {
@@ -1489,13 +1492,16 @@
                 mediaRecorder.stop();
 
                 if (stream) {
-                    stream.getTracks().forEach(track => track.stop());
+                    stream.getTracks().forEach(track => {
+                        track.stop(); // Stop the individual track
+                    });
+                    stream = null; // Explicitly nullify the stream object
                 }
 
-                isRecording = false;
-                // CORRECTED: Set isProcessing to false here, allowing for immediate re-recording
-                isProcessing = true; // <--- ADD THIS LINE HERE
+                // Also explicitly stop the mediaRecorder and nullify it
+                mediaRecorder = null; 
 
+                isRecording = false;
                 document.getElementById('micButton').classList.remove('recording');
                 document.getElementById('recordStatus').textContent = 'Processing...';
                 document.getElementById('recordStatus').classList.remove('recording');
@@ -1558,38 +1564,60 @@
         }
 
        async function sendAudioToServer(audioBlob) {
-           try {
-               const formData = new FormData();
-               formData.append('audio', audioBlob, 'recording.webm');
-               
-               const response = await fetch('/voice_chat', {
-                   method: 'POST',
-                   body: formData
-               });
-               
-               if (!response.ok) {
-                   throw new Error(`Server error: ${response.status}`);
-               }
-               
-               const data = await response.json();
-               
-               // Add user message to chat
-               addMessage('user', data.user_input, null);
-               
-               // Add assistant response to chat
-               addMessage('assistant', data.mai_response, data.audio_filename);
-               
-           } catch (error) {
-               console.error('Error sending audio:', error);
-               showError('Failed to process voice message. Please try again.');
-           } finally {
-               isProcessing = false;
-               document.getElementById('recordStatus').textContent = 'Tap microphone to start recording';
-               document.getElementById('processingIndicator').classList.remove('show');
-           }
-       }
+            isProcessing = true;
+            document.getElementById('sendButton').disabled = true;
 
-       function addMessage(type, content, audioFilename = null) {
+            try {
+                const formData = new FormData();
+                formData.append('audio', audioBlob, 'recording.webm');
+
+                const tempMessageId = Date.now();
+                addMessage('user', 'Transcribing...', null, tempMessageId);
+
+                const response = await fetch('/voice_chat', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                if (!response.ok) {
+                    throw new Error(`Server error: ${response.status}`);
+                }
+
+                const data = await response.json();
+
+                updateMessage(tempMessageId, data.user_input);
+
+                // Important: Only attempt playback AFTER the stream is confirmed stopped and possibly a small delay
+                // This is where Firefox might be getting confused.
+                if (data.audio_filename) {
+                    // Introduce a small, but consistent delay here.
+                    // You might need to experiment with the duration (e.g., 100ms, 250ms, 500ms)
+                    await new Promise(resolve => setTimeout(resolve, 200)); // Delay for 200ms
+
+                    addMessage('assistant', data.mai_response, data.audio_filename); // This adds and plays
+                } else {
+                    addMessage('assistant', data.mai_response, null);
+                }
+
+            } catch (error) {
+                console.error('Error sending audio:', error);
+                showError('Failed to process voice message. Please try again.');
+            } finally {
+                isProcessing = false;
+                document.getElementById('sendButton').disabled = false;
+                document.getElementById('recordStatus').textContent = 'Tap microphone to start recording';
+                document.getElementById('processingIndicator').classList.remove('show');
+            }
+        }
+
+       function updateMessage(id, newContent) {
+            const messageDiv = document.querySelector(`.message[data-id="${id}"] .message-text`);
+            if (messageDiv) {
+                messageDiv.textContent = newContent;
+            }
+        }
+
+       function addMessage(type, content, audioFilename = null, id = null) {
            const chatHistory = document.getElementById('chatHistory');
            
            // Remove empty state if this is the first message
@@ -1600,6 +1628,9 @@
            
            const messageDiv = document.createElement('div');
            messageDiv.className = `message ${type}`;
+           if (id) {
+                messageDiv.setAttribute('data-id', id); // Set data attribute for easy selection
+            }
            
            const avatar = document.createElement('div');
            avatar.className = 'message-avatar';
