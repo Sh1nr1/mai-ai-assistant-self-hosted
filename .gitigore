@@ -1,0 +1,12 @@
+# Ignore local database and environment files
+.env
+__pycache__/
+*.pyc
+.pytest_cache/
+.vscode/
+
+# Ignore memory/database directories
+mai_memory/
+
+# Ignore audio/output directories
+audio_output/
