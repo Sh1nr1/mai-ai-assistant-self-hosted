@@ -46,7 +46,15 @@ Digital_Aesthetic: Section_9_Cyberpunk_Interface_v2
 Intelligence_Handler: Optimized_LLM_Logic
 User_Experience: Redesigned_Interface_Matrix
 ```
+---
+### ▶️ **Watch MAI in action – the emotional cyberpunk AI assistant you control!**
 
+<p align="center">
+  <a href="https://www.youtube.com/watch?v=80RI40FFxJI">
+    <img src="https://i.ytimg.com/vi/80RI40FFxJI/maxresdefault.jpg" alt="Watch Mai in Action">
+  </a>
+</p>
+---
 ---
 
 ## ⚡ ENHANCED GHOST CAPABILITIES
@@ -61,6 +69,19 @@ User_Experience: Redesigned_Interface_Matrix
 | **⚡ Real-time Processing** | FastAPI-based consciousness layer ensuring instantaneous response and natural conversation flow with enhanced reliability | **🔧 System Optimizations** - Improved efficiency and stability |
 
 > **🔥 EMOTIONAL EVOLUTION:** *Mai now not only remembers what you say, but how you feel when you say it. Her enhanced sentiment analysis allows her to detect your emotional state and respond with genuine empathy, making each conversation more meaningful and supportive.*
+
+---
+
+---
+
+## ✨ Hear Mai in Action!
+
+>Listen to a quick introduction from Mai:
+
+<audio controls>
+  <source src="samples/mai_welcome_sample.mp3" type="audio/mpeg">
+  Your browser does not support the audio element.
+</audio>
 
 ---
 
