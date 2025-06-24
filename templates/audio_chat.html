@@ -4,13 +4,26 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Mai - Voice Interface</title>
-    <style>
+<style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
         
         * {
             margin: 0;
             padding: 0;
             box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
+            -webkit-touch-callout: none;
+            -webkit-user-select: none;
+            -moz-user-select: none;
+            -ms-user-select: none;
+            user-select: none;
+        }
+
+        input, textarea, button {
+            -webkit-user-select: text;
+            -moz-user-select: text;
+            -ms-user-select: text;
+            user-select: text;
         }
 
         :root {
@@ -18,41 +31,85 @@
             --primary-purple: #8b5cf6;
             --primary-pink: #ec4899;
             --accent-green: #10b981;
+            --accent-orange: #f59e0b;
             --dark-bg: #0a0a0f;
             --darker-bg: #050507;
-            --card-bg: rgba(15, 15, 25, 0.8);
-            --glass-bg: rgba(255, 255, 255, 0.05);
+            --card-bg: rgba(15, 15, 25, 0.85);
+            --glass-bg: rgba(255, 255, 255, 0.08);
+            --glass-border: rgba(255, 255, 255, 0.12);
             --text-primary: #ffffff;
             --text-secondary: #a1a1aa;
-            --border-color: rgba(255, 255, 255, 0.1);
-            --shadow-glow: 0 0 40px rgba(0, 212, 255, 0.3);
+            --text-muted: #71717a;
+            --border-color: rgba(255, 255, 255, 0.08);
+            --shadow-glow: 0 0 40px rgba(0, 212, 255, 0.25);
+            --shadow-elevated: 0 8px 32px rgba(0, 0, 0, 0.4);
+            --shadow-floating: 0 16px 64px rgba(0, 0, 0, 0.3);
+            --blur-light: blur(12px);
+            --blur-heavy: blur(24px);
+            --border-radius-sm: 8px;
+            --border-radius-md: 12px;
+            --border-radius-lg: 16px;
+            --border-radius-xl: 20px;
+            --transition-fast: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+            --transition-smooth: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            --transition-slow: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+            :root {
+                --transition-fast: none;
+                --transition-smooth: none;
+                --transition-slow: none;
+            }
+            
+            * {
+                animation-duration: 0.01ms !important;
+                animation-iteration-count: 1 !important;
+                transition-duration: 0.01ms !important;
+            }
+        }
+
+        html {
+            font-size: 16px;
+            -webkit-text-size-adjust: 100%;
+            -ms-text-size-adjust: 100%;
         }
 
         body {
-            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
             background: var(--dark-bg);
             color: var(--text-primary);
             min-height: 100vh;
+            min-height: 100dvh;
             overflow: hidden;
             position: relative;
             font-weight: 400;
+            line-height: 1.5;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+            text-rendering: optimizeLegibility;
+            overscroll-behavior: none;
         }
 
-        /* Animated background */
+        /* Enhanced animated background with better performance */
         body::before {
             content: '';
             position: fixed;
             top: 0;
             left: 0;
-            width: 100%;
-            height: 100%;
+            width: 100vw;
+            height: 100vh;
             background: 
-                radial-gradient(circle at 25% 25%, rgba(0, 212, 255, 0.15) 0%, transparent 50%),
-                radial-gradient(circle at 75% 75%, rgba(139, 92, 246, 0.15) 0%, transparent 50%),
-                radial-gradient(circle at 50% 50%, rgba(236, 72, 153, 0.1) 0%, transparent 50%);
+                radial-gradient(circle at 20% 20%, rgba(0, 212, 255, 0.12) 0%, transparent 45%),
+                radial-gradient(circle at 80% 80%, rgba(139, 92, 246, 0.12) 0%, transparent 45%),
+                radial-gradient(circle at 40% 60%, rgba(236, 72, 153, 0.08) 0%, transparent 45%),
+                radial-gradient(circle at 60% 40%, rgba(16, 185, 129, 0.06) 0%, transparent 45%);
             pointer-events: none;
-            z-index: -2;
-            animation: backgroundShift 20s ease-in-out infinite alternate;
+            z-index: -3;
+            will-change: transform;
+            animation: backgroundShift 25s ease-in-out infinite alternate;
+            background-size: 200% 200%; /* Important: Make the gradients cover a larger area than the viewport */
+            background-position: 0% 0%; /* Initial position for the background-size */
         }
 
         body::after {
@@ -60,53 +117,70 @@
             position: fixed;
             top: 0;
             left: 0;
-            width: 100%;
-            height: 100%;
+            width: 100vw;
+            height: 100vh;
             background: 
-                linear-gradient(135deg, transparent 0%, rgba(0, 212, 255, 0.03) 25%, transparent 50%, rgba(139, 92, 246, 0.03) 75%, transparent 100%);
+                linear-gradient(135deg, 
+                    transparent 0%, 
+                    rgba(0, 212, 255, 0.02) 20%, 
+                    transparent 40%, 
+                    rgba(139, 92, 246, 0.02) 60%, 
+                    transparent 80%, 
+                    rgba(236, 72, 153, 0.02) 100%
+                );
             pointer-events: none;
-            z-index: -1;
-            animation: gradientFlow 15s linear infinite;
+            z-index: -2;
+            will-change: background-position;
+            animation: gradientFlow 20s linear infinite;
+            /* Add this line to ensure the gradient itself can stretch */
+            background-size: 300% 100%; /* Or even larger like 400% 100% if needed to prevent banding */
         }
 
         @keyframes backgroundShift {
-            0% { transform: scale(1) rotate(0deg); }
-            100% { transform: scale(1.1) rotate(5deg); }
+            0% { background-position: 0% 0%; } /* Animate background-position directly */
+            50% { background-position: 100% 100%; } /* Shift the background */
+            100% { background-position: 0% 0%; } /* Back to start */
         }
 
         @keyframes gradientFlow {
             0% { background-position: 0% 0%; }
-            100% { background-position: 100% 100%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 100%; }
         }
 
         .container {
             display: flex;
             flex-direction: column;
             height: 100vh;
-            max-width: 1200px;
+            height: 100dvh;
+            max-width: 1400px;
             margin: 0 auto;
             position: relative;
+            padding: 0;
         }
 
         .header {
             text-align: center;
-            padding: 1.5rem 2rem 1rem;
+            padding: 0;
             position: relative;
             z-index: 10;
             flex-shrink: 0;
         }
 
         .logo {
-            font-size: 3rem;
+            font-size: clamp(2rem, 8vw, 3.5rem);
             font-weight: 700;
-            background: linear-gradient(135deg, var(--primary-cyan), var(--primary-purple), var(--primary-pink));
+            background: linear-gradient(135deg, var(--primary-cyan) 0%, var(--primary-purple) 50%, var(--primary-pink) 100%);
             background-clip: text;
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
+            background-size: 200% 200%;
             margin-bottom: 0.5rem;
-            letter-spacing: 6px;
+            letter-spacing: clamp(2px, 1.5vw, 8px);
             position: relative;
-            animation: logoGlow 3s ease-in-out infinite alternate;
+            will-change: filter, background-position;
+            animation: logoGlow 4s ease-in-out infinite alternate, gradientShift 8s ease-in-out infinite;
+            text-shadow: 0 0 30px rgba(0, 212, 255, 0.3);
         }
 
         .logo::after {
@@ -115,98 +189,130 @@
             top: 50%;
             left: 50%;
             transform: translate(-50%, -50%);
-            width: 120%;
-            height: 120%;
-            background: linear-gradient(135deg, var(--primary-cyan), var(--primary-purple), var(--primary-pink));
-            opacity: 0.2;
-            border-radius: 20px;
-            filter: blur(20px);
+            width: 150vw;
+            height: 150vh;
+            background: radial-gradient(
+                circle at center, /* Start the gradient from the center of the element */
+                rgba(0, 212, 255, 0.25) 0%, /* Primary Cyan (more opaque at center) */
+                rgba(139, 92, 246, 0.15) 30%, /* Primary Purple */
+                rgba(236, 72, 153, 0.08) 60%, /* Primary Pink */
+                transparent 100% /* Fade to fully transparent at the edges */
+            );
+            opacity: 0.15;
+            border-radius: 0;
+            filter: blur(80px);
             z-index: -1;
-            animation: logoGlowBg 3s ease-in-out infinite alternate;
+            will-change: opacity, transform;
+            animation: logoGlowBg 4s ease-in-out infinite alternate;
         }
 
         @keyframes logoGlow {
-            0% { filter: brightness(1) saturate(1); }
-            100% { filter: brightness(1.2) saturate(1.3); }
+            0% { filter: brightness(1) saturate(1) drop-shadow(0 0 20px rgba(0, 212, 255, 0.3)); }
+            100% { filter: brightness(1.3) saturate(1.4) drop-shadow(0 0 40px rgba(0, 212, 255, 0.5)); }
         }
 
         @keyframes logoGlowBg {
-            0% { opacity: 0.2; transform: translate(-50%, -50%) scale(1); }
-            100% { opacity: 0.4; transform: translate(-50%, -50%) scale(1.1); }
+            0% { opacity: 0.15; transform: translate(-50%, -50%)  scale(1); }
+            100% { opacity: 0.3; transform: translate(-50%, -50%)  scale(1.12); }
+        }
+
+
+
+        @keyframes gradientShift {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
         }
 
         .subtitle {
             color: var(--text-secondary);
-            font-size: 0.875rem;
+            font-size: clamp(0.75rem, 2vw, 0.875rem);
             text-transform: uppercase;
-            letter-spacing: 2px;
-            font-weight: 300;
-            opacity: 0.8;
+            letter-spacing: clamp(1px, 0.5vw, 3px);
+            font-weight: 400;
+            opacity: 0.9;
+            margin-top: 0.25rem;
         }
 
         .status-bar {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            padding: 0.75rem 1.5rem;
-            background: var(--glass-bg);
-            border: 1px solid var(--border-color);
-            border-radius: 12px;
-            backdrop-filter: blur(20px);
-            margin: 0 2rem 1rem;
-            font-size: 0.8rem;
+            padding: clamp(0.75rem, 2vw, 1rem) clamp(1rem, 3vw, 1.5rem);
+            background: var(--card-bg);
+            border: 1px solid var(--glass-border);
+            border-radius: var(--border-radius-md);
+            backdrop-filter: var(--blur-heavy);
+            margin: 0 clamp(1rem, 3vw, 2rem) clamp(0.75rem, 2vw, 1rem);
+            font-size: clamp(0.75rem, 2vw, 0.875rem);
             color: var(--text-secondary);
-            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+            box-shadow: var(--shadow-elevated);
             flex-shrink: 0;
+            transition: var(--transition-smooth);
+        }
+
+        .status-bar:hover {
+            background: rgba(15, 15, 25, 0.95);
+            border-color: rgba(255, 255, 255, 0.15);
+            transform: translateY(-1px);
         }
 
         .status-indicator {
             display: flex;
             align-items: center;
-            gap: 6px;
+            gap: clamp(6px, 1vw, 8px);
+            font-weight: 500;
         }
 
         .status-dot {
-            width: 8px;
-            height: 8px;
+            width: clamp(6px, 1.5vw, 8px);
+            height: clamp(6px, 1.5vw, 8px);
             border-radius: 50%;
             background: var(--accent-green);
-            animation: statusPulse 2s ease-in-out infinite;
-            box-shadow: 0 0 8px var(--accent-green);
+            will-change: opacity, transform;
+            animation: statusPulse 2.5s ease-in-out infinite;
+            box-shadow: 0 0 12px var(--accent-green);
+            flex-shrink: 0;
         }
 
         @keyframes statusPulse {
             0%, 100% { opacity: 1; transform: scale(1); }
-            50% { opacity: 0.6; transform: scale(1.2); }
+            50% { opacity: 0.7; transform: scale(1.3); }
         }
 
         .controls {
             display: flex; 
             justify-content: center;
-            gap: 0.75rem;
-            margin: 0 2rem 1rem;
+            gap: clamp(0.5rem, 2vw, 1rem);
+            margin: 0 clamp(1rem, 3vw, 2rem) clamp(0.75rem, 2vw, 1rem);
             flex-wrap: wrap;
             flex-shrink: 0;
         }
 
         .btn {
-            padding: 0.5rem 1rem;
+            padding: clamp(0.5rem, 2vw, 0.75rem) clamp(0.875rem, 3vw, 1.25rem);
             border: 1px solid var(--border-color);
             background: var(--glass-bg);
             color: var(--text-primary);
-            border-radius: 8px;
+            border-radius: var(--border-radius-sm);
             cursor: pointer;
             font-family: inherit;
-            font-size: 0.75rem;
+            font-size: clamp(0.7rem, 2vw, 0.8rem);
             font-weight: 500;
             text-transform: uppercase;
-            letter-spacing: 0.5px;
-            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            letter-spacing: 0.75px;
+            transition: var(--transition-smooth);
             text-decoration: none;
-            display: inline-block;
-            backdrop-filter: blur(20px);
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+            backdrop-filter: var(--blur-light);
             position: relative;
             overflow: hidden;
+            min-height: 44px; /* iOS accessibility */
+            touch-action: manipulation;
+            will-change: transform, box-shadow, background;
         }
 
         .btn::before {
@@ -217,31 +323,43 @@
             width: 100%;
             height: 100%;
             background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.1), transparent);
-            transition: left 0.5s;
+            transition: left 0.6s ease;
+            will-change: left;
         }
 
-        .btn:hover::before {
+        .btn:hover::before,
+        .btn:focus::before {
             left: 100%;
         }
 
-        .btn:hover {
-            background: rgba(255, 255, 255, 0.1);
+        .btn:hover,
+        .btn:focus {
+            background: var(--glass-border);
             border-color: var(--primary-cyan);
-            transform: translateY(-1px);
-            box-shadow: 0 8px 25px rgba(0, 212, 255, 0.3);
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(0, 212, 255, 0.25), var(--shadow-elevated);
+            color: var(--primary-cyan);
         }
 
-        .btn.danger:hover {
+        .btn:active {
+            transform: translateY(0);
+            transition: var(--transition-fast);
+        }
+
+        .btn.danger:hover,
+        .btn.danger:focus {
             border-color: var(--primary-pink);
-            box-shadow: 0 8px 25px rgba(236, 72, 153, 0.3);
+            box-shadow: 0 8px 25px rgba(236, 72, 153, 0.25), var(--shadow-elevated);
+            color: var(--primary-pink);
         }
 
         .main-content {
             display: flex;
             flex: 1;
-            gap: 1.5rem;
-            padding: 0 2rem;
+            gap: clamp(1rem, 3vw, 2rem);
+            padding: 0 clamp(1rem, 3vw, 2rem);
             min-height: 0;
+            overflow: hidden;
         }
 
         .chat-section {
@@ -249,21 +367,25 @@
             display: flex;
             flex-direction: column;
             min-height: 0;
+            min-width: 0;
         }
 
         .chat-history {
             flex: 1;
             overflow-y: auto;
-            padding: 1.5rem;
+            overflow-x: hidden;
+            padding: clamp(1rem, 3vw, 1.5rem);
             background: var(--card-bg);
-            border: 1px solid var(--border-color);
-            border-radius: 16px;
-            backdrop-filter: blur(30px);
+            border: 1px solid var(--glass-border);
+            border-radius: var(--border-radius-lg);
+            backdrop-filter: var(--blur-heavy);
             box-shadow: 
-                0 10px 40px rgba(0, 0, 0, 0.3),
-                inset 0 1px 0 rgba(255, 255, 255, 0.1);
+                var(--shadow-floating),
+                inset 0 1px 0 rgba(255, 255, 255, 0.08);
             position: relative;
-            margin-bottom: 1rem;
+            margin-bottom: clamp(0.75rem, 2vw, 1rem);
+            overscroll-behavior: contain;
+            -webkit-overflow-scrolling: touch;
         }
 
         .chat-history::-webkit-scrollbar {
@@ -271,13 +393,14 @@
         }
 
         .chat-history::-webkit-scrollbar-track {
-            background: rgba(255, 255, 255, 0.05);
+            background: rgba(255, 255, 255, 0.04);
             border-radius: 3px;
         }
 
         .chat-history::-webkit-scrollbar-thumb {
             background: rgba(255, 255, 255, 0.2);
             border-radius: 3px;
+            transition: var(--transition-smooth);
         }
 
         .chat-history::-webkit-scrollbar-thumb:hover {
@@ -285,17 +408,18 @@
         }
 
         .message {
-            margin-bottom: 1.5rem;
+            margin-bottom: clamp(1rem, 3vw, 1.5rem);
+            will-change: opacity, transform;
             animation: messageAppear 0.6s cubic-bezier(0.4, 0, 0.2, 1);
             display: flex;
             align-items: flex-start;
-            gap: 1rem;
+            gap: clamp(0.75rem, 2vw, 1rem);
         }
 
         @keyframes messageAppear {
             from { 
                 opacity: 0; 
-                transform: translateY(20px) scale(0.95); 
+                transform: translateY(20px) scale(0.98); 
             }
             to { 
                 opacity: 1; 
@@ -304,59 +428,74 @@
         }
 
         .message-avatar {
-            width: 40px;
-            height: 40px;
-            border-radius: 12px;
+            width: clamp(35px, 8vw, 42px);
+            height: clamp(35px, 8vw, 42px);
+            border-radius: var(--border-radius-md);
             display: flex;
             align-items: center;
             justify-content: center;
             font-weight: 600;
-            font-size: 0.875rem;
+            font-size: clamp(0.8rem, 2vw, 0.9rem);
             flex-shrink: 0;
             border: 2px solid;
+            backdrop-filter: var(--blur-light);
+            transition: var(--transition-smooth);
         }
 
         .message.user .message-avatar {
-            background: rgba(0, 212, 255, 0.2);
+            background: rgba(0, 212, 255, 0.15);
             border-color: var(--primary-cyan);
             color: var(--primary-cyan);
+            box-shadow: 0 0 20px rgba(0, 212, 255, 0.2);
         }
 
         .message.assistant .message-avatar {
-            background: rgba(236, 72, 153, 0.2);
+            background: rgba(236, 72, 153, 0.15);
             border-color: var(--primary-pink);
             color: var(--primary-pink);
+            box-shadow: 0 0 20px rgba(236, 72, 153, 0.2);
         }
 
         .message-content {
             flex: 1;
-            padding: 1rem 1.25rem;
-            border-radius: 16px;
+            padding: clamp(0.875rem, 2.5vw, 1.25rem);
+            border-radius: var(--border-radius-lg);
             position: relative;
-            backdrop-filter: blur(10px);
+            backdrop-filter: var(--blur-light);
             border: 1px solid var(--border-color);
+            transition: var(--transition-smooth);
+            min-width: 0;
+            word-wrap: break-word;
+            overflow-wrap: break-word;
         }
 
         .message.user .message-content {
-            background: rgba(0, 212, 255, 0.1);
-            border-color: rgba(0, 212, 255, 0.3);
+            background: rgba(0, 212, 255, 0.08);
+            border-color: rgba(0, 212, 255, 0.2);
         }
 
         .message.assistant .message-content {
-            background: rgba(236, 72, 153, 0.1);
-            border-color: rgba(236, 72, 153, 0.3);
+            background: rgba(236, 72, 153, 0.08);
+            border-color: rgba(236, 72, 153, 0.2);
+        }
+
+        .message-content:hover {
+            background: rgba(255, 255, 255, 0.02);
+            border-color: rgba(255, 255, 255, 0.15);
         }
 
         .message-header {
-            font-size: 0.75rem;
+            font-size: clamp(0.7rem, 1.8vw, 0.75rem);
             text-transform: uppercase;
             letter-spacing: 1px;
             margin-bottom: 0.5rem;
-            opacity: 0.8;
+            opacity: 0.9;
             font-weight: 600;
             display: flex;
             justify-content: space-between;
             align-items: center;
+            flex-wrap: wrap;
+            gap: 0.5rem;
         }
 
         .message.user .message-header {
@@ -369,9 +508,11 @@
 
         .message-text {
             line-height: 1.6;
-            font-size: 0.9rem;
+            font-size: clamp(0.85rem, 2.2vw, 0.95rem);
             white-space: pre-wrap;
             word-wrap: break-word;
+            overflow-wrap: break-word;
+            font-weight: 400;
         }
 
         .audio-player {
@@ -382,17 +523,18 @@
 
         .audio-player audio {
             width: 100%;
-            height: 40px;
-            background: rgba(0, 0, 0, 0.3);
-            border-radius: 8px;
+            height: clamp(35px, 8vw, 45px);
+            background: rgba(0, 0, 0, 0.4);
+            border-radius: var(--border-radius-sm);
             border: 1px solid var(--border-color);
+            backdrop-filter: var(--blur-light);
         }
 
         .voice-control-panel {
-            width: 300px;
+            width: clamp(280px, 25vw, 320px);
             display: flex;
             flex-direction: column;
-            gap: 1rem;
+            gap: clamp(0.75rem, 2vw, 1rem);
             flex-shrink: 0;
         }
 
@@ -400,38 +542,45 @@
             display: flex;
             flex-direction: column;
             align-items: center;
-            padding: 2rem;
+            padding: clamp(1.5rem, 4vw, 2.5rem);
             background: var(--card-bg);
-            border: 1px solid var(--border-color);
-            border-radius: 16px;
-            backdrop-filter: blur(30px);
-            box-shadow: 
-                0 10px 40px rgba(0, 0, 0, 0.3),
-                inset 0 1px 0 rgba(255, 255, 255, 0.1);
+            border: 1px solid var(--glass-border);
+            border-radius: var(--border-radius-lg);
+            backdrop-filter: var(--blur-heavy);
+            box-shadow: var(--shadow-floating);
+            transition: var(--transition-smooth);
+        }
+
+        .record-section:hover {
+            background: rgba(15, 15, 25, 0.95);
+            border-color: rgba(255, 255, 255, 0.15);
         }
 
         .mic-container {
             position: relative;
-            margin-bottom: 1.5rem;
+            margin-bottom: clamp(1rem, 3vw, 1.5rem);
         }
 
         .mic-button {
-            width: 120px;
-            height: 120px;
+            width: clamp(100px, 20vw, 130px);
+            height: clamp(100px, 20vw, 130px);
             border-radius: 50%;
             border: 3px solid var(--primary-cyan);
-            background: radial-gradient(circle, rgba(0, 212, 255, 0.1) 0%, rgba(0, 212, 255, 0.03) 70%);
+            background: radial-gradient(circle, rgba(0, 212, 255, 0.12) 0%, rgba(0, 212, 255, 0.04) 70%);
             cursor: pointer;
             display: flex;
             align-items: center;
             justify-content: center;
-            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            transition: var(--transition-smooth);
             position: relative;
             overflow: hidden;
-            backdrop-filter: blur(20px);
+            backdrop-filter: var(--blur-light);
             box-shadow: 
-                0 0 30px rgba(0, 212, 255, 0.3),
-                inset 0 0 30px rgba(0, 212, 255, 0.1);
+                0 0 30px rgba(0, 212, 255, 0.25),
+                inset 0 0 30px rgba(0, 212, 255, 0.08);
+            touch-action: manipulation;
+            will-change: transform, box-shadow, border-color;
+            min-height: 40px; /* iOS accessibility */
         }
 
         .mic-button::before {
@@ -440,12 +589,13 @@
             top: 50%;
             left: 50%;
             transform: translate(-50%, -50%);
-            width: 30px;
-            height: 40px;
+            width: clamp(25px, 5vw, 32px);
+            height: clamp(35px, 7vw, 42px);
             border: 3px solid var(--primary-cyan);
             border-radius: 12px 12px 0 0;
             background: transparent;
-            filter: drop-shadow(0 0 8px rgba(0, 212, 255, 0.5));
+            filter: drop-shadow(0 0 8px rgba(0, 212, 255, 0.4));
+            transition: var(--transition-smooth);
         }
 
         .mic-button::after {
@@ -454,84 +604,97 @@
             top: 68%;
             left: 50%;
             transform: translateX(-50%);
-            width: 20px;
-            height: 15px;
+            width: clamp(18px, 4vw, 22px);
+            height: clamp(12px, 3vw, 16px);
             border: 3px solid var(--primary-cyan);
             border-top: none;
             border-radius: 0 0 8px 8px;
             background: transparent;
-            filter: drop-shadow(0 0 8px rgba(0, 212, 255, 0.5));
+            filter: drop-shadow(0 0 8px rgba(0, 212, 255, 0.4));
+            transition: var(--transition-smooth);
         }
 
-        .mic-button:hover {
+        .mic-button:hover,
+        .mic-button:focus {
             transform: scale(1.05);
             box-shadow: 
-                0 0 50px rgba(0, 212, 255, 0.5),
-                inset 0 0 30px rgba(0, 212, 255, 0.2);
+                0 0 50px rgba(0, 212, 255, 0.4),
+                inset 0 0 30px rgba(0, 212, 255, 0.15);
+        }
+
+        .mic-button:active {
+            transform: scale(0.98);
+            transition: var(--transition-fast);
         }
 
         .mic-button.recording {
-            animation: micRecording 1.5s ease-in-out infinite;
+            will-change: transform, box-shadow, border-color;
+            animation: micRecording 1.8s ease-in-out infinite;
             border-color: var(--primary-pink);
-            background: radial-gradient(circle, rgba(236, 72, 153, 0.2) 0%, rgba(236, 72, 153, 0.05) 70%);
+            background: radial-gradient(circle, rgba(236, 72, 153, 0.2) 0%, rgba(236, 72, 153, 0.06) 70%);
             box-shadow: 
-                0 0 50px rgba(236, 72, 153, 0.6),
-                inset 0 0 30px rgba(236, 72, 153, 0.2);
+                0 0 60px rgba(236, 72, 153, 0.5),
+                inset 0 0 40px rgba(236, 72, 153, 0.15);
         }
 
         .mic-button.recording::before,
         .mic-button.recording::after {
             border-color: var(--primary-pink);
-            filter: drop-shadow(0 0 12px rgba(236, 72, 153, 0.8));
+            filter: drop-shadow(0 0 12px rgba(236, 72, 153, 0.6));
         }
 
         @keyframes micRecording {
             0%, 100% { 
                 transform: scale(1);
                 box-shadow: 
-                    0 0 50px rgba(236, 72, 153, 0.6),
-                    inset 0 0 30px rgba(236, 72, 153, 0.2);
+                    0 0 60px rgba(236, 72, 153, 0.5),
+                    inset 0 0 40px rgba(236, 72, 153, 0.15);
             }
             50% { 
-                transform: scale(1.1);
+                transform: scale(1.08);
                 box-shadow: 
-                    0 0 80px rgba(236, 72, 153, 0.8),
-                    inset 0 0 40px rgba(236, 72, 153, 0.3);
+                    0 0 80px rgba(236, 72, 153, 0.7),
+                    inset 0 0 50px rgba(236, 72, 153, 0.25);
             }
         }
 
         .record-status {
             text-align: center;
-            font-size: 0.875rem;
+            font-size: clamp(0.8rem, 2vw, 0.9rem);
             color: var(--text-secondary);
             font-weight: 500;
-            transition: all 0.3s ease;
+            transition: var(--transition-smooth);
+            line-height: 1.4;
+            max-width: 200px;
         }
 
         .record-status.recording {
             color: var(--primary-pink);
-            animation: statusBlink 1s ease-in-out infinite;
-            text-shadow: 0 0 10px rgba(236, 72, 153, 0.5);
+            will-change: opacity;
+            animation: statusBlink 1.2s ease-in-out infinite;
+            text-shadow: 0 0 15px rgba(236, 72, 153, 0.4);
+            font-weight: 600;
         }
 
         @keyframes statusBlink {
-            0%, 50% { opacity: 1; }
-            51%, 100% { opacity: 0.6; }
+            0%, 60% { opacity: 1; }
+            61%, 100% { opacity: 0.7; }
         }
 
         .processing {
             text-align: center;
-            padding: 1.5rem;
+            padding: clamp(1rem, 3vw, 1.5rem);
             color: var(--primary-cyan);
             font-style: italic;
-            font-size: 1rem;
+            font-size: clamp(0.9rem, 2.5vw, 1rem);
             display: none;
             background: var(--glass-bg);
-            border-radius: 12px;
-            backdrop-filter: blur(20px);
-            border: 1px solid var(--border-color);
+            border-radius: var(--border-radius-md);
+            backdrop-filter: var(--blur-heavy);
+            border: 1px solid var(--glass-border);
             position: relative;
             overflow: hidden;
+            font-weight: 500;
         }
 
         .processing::before {
@@ -542,7 +705,8 @@
             width: 100%;
             height: 100%;
             background: linear-gradient(90deg, transparent, rgba(0, 212, 255, 0.1), transparent);
-            animation: shimmer 2s infinite;
+            will-change: left;
+            animation: shimmer 2.5s infinite;
         }
 
         @keyframes shimmer {
@@ -552,30 +716,37 @@
 
         .processing.show {
             display: block;
-            animation: fadeInUp 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            animation: fadeInUp 0.5s cubic-bezier(0.4, 0, 0.2, 1);
         }
 
         @keyframes fadeInUp {
             from { 
                 opacity: 0; 
-                transform: translateY(20px); 
+                transform: translateY(20px) scale(0.95); 
             }
             to { 
                 opacity: 1; 
-                transform: translateY(0); 
+                transform: translateY(0) scale(1); 
             }
         }
 
         .input-section {
-            padding: 1rem 1.5rem;
+            padding: clamp(0.875rem, 2.5vw, 1.25rem);
             background: var(--card-bg);
-            border: 1px solid var(--border-color);
-            border-radius: 16px;
-            backdrop-filter: blur(30px);
+            border: 1px solid var(--glass-border);
+            border-radius: var(--border-radius-lg);
+            backdrop-filter: var(--blur-heavy);
             display: flex;
-            gap: 1rem;
+            gap: clamp(0.75rem, 2vw, 1rem);
             align-items: flex-end;
             flex-shrink: 0;
+            box-shadow: var(--shadow-elevated);
+            transition: var(--transition-smooth);
+        }
+
+        .input-section:focus-within {
+            border-color: var(--primary-cyan);
+            box-shadow: 0 0 30px rgba(0, 212, 255, 0.2), var(--shadow-elevated);
         }
 
         .input-container {
@@ -583,25 +754,27 @@
             display: flex;
             flex-direction: column;
             gap: 0.5rem;
+            min-width: 0;
         }
 
         .input-text {
             background: var(--glass-bg);
             border: 1px solid var(--border-color);
-            border-radius: 12px;
-            padding: 0.75rem 1rem;
+            border-radius: var(--border-radius-md);
+            padding: clamp(0.75rem, 2vw, 1rem);
             color: var(--text-primary);
             font-family: inherit;
-            font-size: 0.9rem;
+            font-size: clamp(0.85rem, 2.2vw, 0.95rem);
             resize: none;
-            min-height: 20px;
-            max-height: 100px;
-            line-height: 1.4;
-            backdrop-filter: blur(20px);
-            transition: all 0.3s ease;
+            min-height: clamp(40px, 8vw, 48px);
+            max-height: 120px;
+            line-height: 1.5;
+            backdrop-filter: var(--blur-light);
+            transition: var(--transition-smooth);
+            -webkit-appearance: none;
+            appearance: none;
         }
-
-        .input-text:focus {
+.input-text:focus {
             outline: none;
             border-color: var(--primary-cyan);
             box-shadow: 0 0 20px rgba(0, 212, 255, 0.3);
@@ -629,6 +802,10 @@
             align-items: center;
             justify-content: center;
             gap: 0.5rem;
+            min-height: 44px;
+            touch-action: manipulation;
+            -webkit-tap-highlight-color: transparent;
+            will-change: transform, box-shadow;
         }
 
         .send-button:hover {
@@ -637,19 +814,25 @@
             background: linear-gradient(135deg, #00b8e6, #7c3aed);
         }
 
+        .send-button:active {
+            transform: translateY(0);
+            transition: var(--transition-fast);
+        }
+
         .send-button:disabled {
             opacity: 0.5;
             cursor: not-allowed;
             transform: none;
             box-shadow: none;
+            pointer-events: none;
         }
 
         .float-button {
             position: fixed;
-            bottom: 2rem;
-            right: 2rem;
-            width: 60px;
-            height: 60px;
+            bottom: clamp(1.5rem, 4vw, 2rem);
+            right: clamp(1.5rem, 4vw, 2rem);
+            width: clamp(50px, 12vw, 60px);
+            height: clamp(50px, 12vw, 60px);
             border-radius: 50%;
             border: 2px solid var(--accent-green);
             background: rgba(16, 185, 129, 0.1);
@@ -658,12 +841,16 @@
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 1.3rem;
+            font-size: clamp(1.1rem, 3vw, 1.3rem);
             transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
             z-index: 1000;
             text-decoration: none;
             backdrop-filter: blur(20px);
             box-shadow: 0 10px 30px rgba(16, 185, 129, 0.2);
+            touch-action: manipulation;
+            -webkit-tap-highlight-color: transparent;
+            will-change: transform, box-shadow, background;
+            min-height: 44px;
         }
 
         .float-button:hover {
@@ -672,19 +859,26 @@
             transform: scale(1.1) translateY(-5px);
         }
 
+        .float-button:active {
+            transform: scale(0.95) translateY(-2px);
+            transition: var(--transition-fast);
+        }
+
         .error-message {
             background: rgba(239, 68, 68, 0.1);
             border: 1px solid #ef4444;
             color: #fca5a5;
-            padding: 1rem;
-            border-radius: 12px;
-            margin: 0 2rem 1rem;
+            padding: clamp(0.875rem, 2.5vw, 1rem);
+            border-radius: var(--border-radius-md);
+            margin: 0 clamp(1rem, 3vw, 2rem) clamp(0.75rem, 2vw, 1rem);
             text-align: center;
             display: none;
             backdrop-filter: blur(20px);
             font-weight: 500;
-            font-size: 0.875rem;
+            font-size: clamp(0.8rem, 2vw, 0.875rem);
             flex-shrink: 0;
+            box-shadow: var(--shadow-elevated);
+            transition: var(--transition-smooth);
         }
 
         .error-message.show {
@@ -696,29 +890,78 @@
             background: rgba(16, 185, 129, 0.1);
             border: 1px solid var(--accent-green);
             color: #6ee7b7;
-            padding: 1rem;
-            border-radius: 12px;
-            margin: 0 2rem 1rem;
+            padding: clamp(0.875rem, 2.5vw, 1rem);
+            border-radius: var(--border-radius-md);
+            margin: 0 clamp(1rem, 3vw, 2rem) clamp(0.75rem, 2vw, 1rem);
             text-align: center;
             backdrop-filter: blur(20px);
             font-weight: 500;
-            font-size: 0.875rem;
+            font-size: clamp(0.8rem, 2vw, 0.875rem);
             animation: fadeInUp 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            box-shadow: var(--shadow-elevated);
+            flex-shrink: 0;
         }
 
         .empty-state {
             text-align: center;
             color: var(--text-secondary);
             font-style: italic;
-            padding: 3rem 2rem;
-            font-size: 1rem;
+            padding: clamp(2rem, 6vw, 3rem) clamp(1rem, 3vw, 2rem);
+            font-size: clamp(0.9rem, 2.5vw, 1rem);
             opacity: 0.7;
+            line-height: 1.6;
+        }
+
+        /* Enhanced responsive design for mobile devices */
+        @media (max-width: 1024px) {
+            .main-content {
+                flex-direction: column;
+                gap: 1rem;
+                padding-bottom: 1rem;
+            }
+            
+            .voice-control-panel {
+                width: 100%;
+                order: -1;
+            }
+            
+            .record-section {
+                padding: 1.5rem;
+                flex-direction: row;
+                align-items: center;
+                gap: 1.5rem;
+            }
+            
+            .mic-container {
+                margin-bottom: 0;
+                flex-shrink: 0;
+            }
+            
+            .mic-button {
+                width: 75px;
+                height: 75px;
+            }
+            
+            .record-status {
+                flex: 1;
+                text-align: left;
+                max-width: none;
+            }
         }
 
         @media (max-width: 768px) {
+            .container {
+                padding: 0;
+            }
+            
+            .header {
+                padding: 1rem 1rem 0.5rem;
+            }
+            
             .main-content {
-                flex-direction: column;
                 padding: 0 1rem;
+                gap: 0.75rem;
+                padding-bottom: 1rem;
             }
             
             .voice-control-panel {
@@ -726,46 +969,60 @@
             }
             
             .record-section {
-                padding: 1.5rem;
+                padding: 1rem;
+                flex-direction: column;
+                gap: 1rem;
+            }
+            
+            .mic-container {
+                margin-bottom: 0;
             }
             
             .mic-button {
-                width: 100px;
-                height: 100px;
+                width: 55px;
+                height: 55px;
             }
             
-            .logo {
-                font-size: 2.5rem;
-                letter-spacing: 4px;
+            .record-status {
+                text-align: center;
+                font-size: 0.85rem;
+                max-width: 200px;
             }
             
             .controls {
-                margin: 0 1rem 1rem;
+                margin: 0 1rem 0.75rem;
                 gap: 0.5rem;
             }
             
             .btn {
-                padding: 0.5rem 0.875rem;
-                font-size: 0.7rem;
+                padding: 0.4rem 0.6rem;
+                font-size: 0.8rem;
+                min-width: 20px;
             }
             
             .status-bar {
-                margin: 0 1rem 1rem;
-                padding: 0.625rem 1rem;
-                font-size: 0.75rem;
+                margin: 0 1rem 0.75rem;
+                padding: 0.75rem 1rem;
+                font-size: 0.8rem;
+                flex-wrap: wrap;
+                gap: 0.5rem;
             }
 
-            .float-button {
-                bottom: 1.5rem;
-                right: 1.5rem;
-                width: 50px;
-                height: 50px;
-                font-size: 1.1rem;
+            .chat-history {
+                flex: 1;
+                padding: 1rem;
+                min-height: 250px;
+                margin-bottom: 0.75rem;
+            }
+
+            .message {
+                gap: 0.75rem;
+                margin-bottom: 1rem;
             }
 
             .message-avatar {
-                width: 35px;
-                height: 35px;
+                width: 36px;
+                height: 36px;
                 font-size: 0.8rem;
             }
 
@@ -773,38 +1030,314 @@
                 padding: 0.875rem 1rem;
             }
 
-            .message {
+            .input-section {
+                padding: 0.75rem;
                 gap: 0.75rem;
+            }
+
+            .input-text {
+                padding: 0.875rem;
+                font-size: 0.9rem;
+            }
+
+            .send-button {
+                padding: 0.75rem 1.25rem;
+                font-size: 0.75rem;
+                min-width: 70px;
             }
         }
 
         @media (max-width: 480px) {
+            .main-content {
+                display: flex;
+                flex: 1; /* Allows it to take remaining vertical space */
+                gap: clamp(1rem, 3vw, 2rem);
+                padding: 0 clamp(1rem, 3vw, 2rem);
+                min-height: 0; /* Essential for flex items with overflow */
+                overflow-y: auto; /* Make main-content scrollable */
+                -webkit-overflow-scrolling: touch; /* For smoother iOS scrolling */
+            }
+            .record-section {
+                padding: 1rem; /* Even smaller padding for very small phones */
+            }
             .header {
-                padding: 1rem 1rem 0.5rem;
+                padding: 0.875rem 1rem 0.5rem;
             }
 
             .logo {
-                font-size: 2rem;
-                letter-spacing: 2px;
+                font-size: 2.2rem;
+                letter-spacing: 3px;
+            }
+
+            .subtitle {
+                font-size: 0.75rem;
+                letter-spacing: 1.5px;
             }
 
             .mic-button {
-                width: 90px;
-                height: 90px;
+                width: 50px;
+                height: 50px;
             }
 
+            .mic-button::before {
+                width: 20px; /* Adjusted size */
+                height: 28px;
+            }
+            .mic-button::after {
+                width: 14px; /* Adjusted size */
+                height: 9px;
+
             .controls {
-                flex-direction: column;
+                flex-direction: row; /* CHANGE THIS BACK TO ROW */
+                flex-wrap: wrap; /* Keep wrap just in case they still don't fit perfectly */
+                justify-content: center; /* Keep them centered */
                 align-items: center;
+                gap: 0.5rem; /* Small gap between buttons */
+                margin: 0 0.5rem 0.5rem; /* Reduce horizontal margin even further for more space */
+            
+            }
+            .record-status {
+                font-size: 0.8rem; /* Further shrink status text */
+                max-width: fit-content;
+                
             }
 
             .btn {
                 width: 100%;
-                max-width: 200px;
+                max-width: 80px;
+                padding: 0.75rem 1rem;
             }
 
             .input-section {
-                padding: 0.875rem 1rem;
+                padding: 0.75rem;
+                flex-direction: column;
+                gap: 0.5rem;
+            }
+
+            .send-button {
+                width: 100%;
+                padding: 0.75rem;
+                justify-content: center;
+            }
+
+            .status-bar {
+                flex-direction: column;
+                align-items: center;
+                text-align: center;
+                gap: 0.5rem;
+            }
+
+            .chat-history {
+                min-height: 200px; /* Adjust min height for smallest phones */
+            }
+
+            .float-button {
+                width: 48px;
+                height: 48px;
+                font-size: 1rem;
+                bottom: 10.5rem;
+                padding-bottom: 4rem;
+                right: 1.25rem;
+            }
+        }
+
+        /* Android-specific optimizations */
+        @media (max-width: 480px) and (-webkit-min-device-pixel-ratio: 1) {
+            .mic-button {
+                -webkit-tap-highlight-color: rgba(0, 212, 255, 0.2);
+            }
+            
+            .btn {
+                -webkit-tap-highlight-color: rgba(0, 212, 255, 0.1);
+            }
+            
+            .send-button {
+                -webkit-tap-highlight-color: rgba(0, 212, 255, 0.2);
+            }
+        }
+
+        /* Ultra-small screens (320px and below) */
+        @media (max-width: 320px) {
+            .logo {
+                font-size: 1.8rem;
+                letter-spacing: 2px;
+            }
+
+            .mic-button {
+                width: 75px;
+                height: 75px;
+            }
+
+            .main-content {
+                padding: 0 0.75rem;
+            }
+
+            .chat-history {
+                padding: 0.75rem;
+            }
+
+            .message-content {
+                padding: 0.75rem;
+            }
+
+            .input-section {
+                padding: 0.75rem;
+            }
+
+            .status-bar {
+                margin: 0 0.75rem 0.5rem;
+                padding: 0.75rem;
+                font-size: 0.75rem;
+            }
+
+            .controls {
+                margin: 0 0.75rem 0.5rem;
+            }
+        }
+
+        /* Landscape orientation optimizations for mobile */
+        @media (max-height: 500px) and (orientation: landscape) {
+            .header {
+                padding: 0.5rem 1rem 0.25rem;
+            }
+
+            .logo {
+                font-size: 1.8rem;
+                margin-bottom: 0.25rem;
+            }
+
+            .subtitle {
+                font-size: 0.7rem;
+            }
+
+            .main-content {
+                flex-direction: row;
+                padding: 0 1rem;
+            }
+
+            .voice-control-panel {
+                width: 250px;
+            }
+
+            .record-section {
+                padding: 1rem;
+            }
+
+            .mic-button {
+                width: 70px;
+                height: 70px;
+            }
+
+            .controls {
+                margin: 0 1rem 0.5rem;
+            }
+
+            .status-bar {
+                margin: 0 1rem 0.5rem;
+                padding: 0.5rem 1rem;
+            }
+
+            .chat-history {
+                margin-bottom: 0.5rem;
+            }
+        }
+
+        /* High DPI displays */
+        @media (-webkit-min-device-pixel-ratio: 2), (min-resolution: 192dpi) {
+            .logo {
+                text-shadow: 0 0 30px rgba(0, 212, 255, 0.4);
+            }
+            
+            .mic-button {
+                box-shadow: 
+                    0 0 40px rgba(0, 212, 255, 0.3),
+                    inset 0 0 40px rgba(0, 212, 255, 0.1);
+            }
+        }
+
+        /* Accessibility improvements */
+        @media (prefers-reduced-motion: reduce) {
+            * {
+                animation-duration: 0.01ms !important;
+                animation-iteration-count: 1 !important;
+                transition-duration: 0.01ms !important;
+            }
+            
+            .mic-button.recording {
+                animation: none;
+                border-color: var(--primary-pink);
+            }
+            
+            .status-dot {
+                animation: none;
+            }
+            
+            .processing::before {
+                animation: none;
+            }
+        }
+
+        @media (prefers-color-scheme: light) {
+            :root {
+                --dark-bg: #fafafa;
+                --darker-bg: #f5f5f5;
+                --card-bg: rgba(255, 255, 255, 0.9);
+                --glass-bg: rgba(0, 0, 0, 0.04);
+                --glass-border: rgba(0, 0, 0, 0.08);
+                --text-primary: #1a1a1a;
+                --text-secondary: #666666;
+                --text-muted: #888888;
+                --border-color: rgba(0, 0, 0, 0.08);
+            }
+        }
+
+        /* Focus styles for keyboard navigation */
+        .mic-button:focus-visible,
+        .btn:focus-visible,
+        .send-button:focus-visible,
+        .float-button:focus-visible {
+            outline: 2px solid var(--primary-cyan);
+            outline-offset: 2px;
+        }
+
+        /* Ensure text remains selectable where needed */
+        .message-text,
+        .input-text {
+            -webkit-user-select: text;
+            -moz-user-select: text;
+            -ms-user-select: text;
+            user-select: text;
+        }
+
+        /* Performance optimizations */
+        .mic-button,
+        .btn,
+        .send-button,
+        .float-button,
+        .message,
+        .logo {
+            contain: layout style paint;
+        }
+
+        /* Smooth scrolling */
+        html {
+            scroll-behavior: smooth;
+        }
+
+        /* Safe area for devices with notches */
+        @supports (padding: max(0px)) {
+            .container {
+                padding-left: max(0px, env(safe-area-inset-left));
+                padding-right: max(0px, env(safe-area-inset-right));
+            }
+            
+            .header {
+                padding-top: max(1rem, env(safe-area-inset-top));
+            }
+            
+            .float-button {
+                bottom: max(5.5rem, env(safe-area-inset-bottom) + 1rem);
+                right: max(1.5rem, env(safe-area-inset-right) + 1rem);
             }
         }
     </style>
