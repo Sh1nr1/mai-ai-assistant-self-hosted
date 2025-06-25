@@ -194,7 +194,7 @@ You're not alone. You've got me now."""
                                  memory_context: Optional[List[str]] = None,
                                  user_emotion: Optional[str] = None,
                                  emotion_confidence: Optional[float] = None,
-                                 max_tokens: int = 1028,
+                                 max_tokens: int = 4096,
                                  temperature: float = 0.7) -> Dict[str, Any]:
         """
         Generate an emotionally-aware response from the LLM.

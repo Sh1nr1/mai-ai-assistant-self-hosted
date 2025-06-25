@@ -272,7 +272,7 @@ async def chat_endpoint(
         memory_context = memory_manager.retrieve_memories(
             query=user_message,
             user_id=user_id,
-            limit=10
+            limit=50
         )
         logger.info(f"Retrieved {len(memory_context)} relevant memories for user {user_id}.")
 
@@ -408,7 +408,7 @@ async def voice_chat_endpoint(
         memory_context = memory_manager.retrieve_memories(
             query=user_input,
             user_id=user_id,
-            limit=10 # Changed from max_memories to limit
+            limit=50 # Changed from max_memories to limit
         )
         logger.info(f"Retrieved {len(memory_context)} relevant memories for user {user_id} for voice interaction.")
 
@@ -531,7 +531,7 @@ async def text_to_voice_chat_endpoint(
         memory_context = memory_manager.retrieve_memories(
             query=user_message,
             user_id=user_id,
-            limit=10
+            limit=50
         )
         logger.info(f"User {user_id}: Retrieved {len(memory_context)} relevant memories.")
 

@@ -892,7 +892,7 @@ class MemoryManager:
             results = self.collection.query(
                 query_embeddings=[query_embedding],
                 where={"user_id": user_id},
-                n_results=min(limit * 2, 100),
+                n_results=min(limit * 2, 200),
                 include=["documents", "metadatas", "distances"]
             )
             #logger.info(f"Raw ChromaDB query results: {results}")
