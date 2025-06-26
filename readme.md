@@ -51,7 +51,11 @@ Now featuring **real-time voice conversation on any device**, **individual consc
 <div align="center">
 
 **🎤 Android + Desktop Voice Interface**
-*[PLACEHOLDER: GIF/Video showing smooth voice interaction across devices]*
+
+
+
+
+[![Video Title](https://i.ytimg.com/vi/SlE5rm3gJnY/maxresdefault.jpg)](https://www.youtube.com/watch?v=SlE5rm3gJnY)
 
 **✨ Real-time Speech Recognition • Ana Neural Voice • Cross-Platform UI**
 
