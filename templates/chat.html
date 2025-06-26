@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Mai - Neural Interface</title>
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Rajdhani:wght@300;400;500;700&display=swap');
         
@@ -139,6 +140,7 @@
         .status-right {
             display: flex;
             gap: 15px;
+            align-items: center; /* Align items in the status bar */
         }
         
         .status-item {
@@ -150,6 +152,47 @@
             color: var(--primary-cyan);
             font-weight: 700;
         }
+
+        /* NEW: Google Login elements styles */
+        .google-login-section {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 11px;
+            color: var(--text-secondary);
+        }
+
+        .google-login-section #auth-status {
+            white-space: nowrap; /* Prevent wrapping for user info */
+            overflow: hidden;
+            text-overflow: ellipsis;
+            max-width: 150px; /* Adjust as needed */
+        }
+
+        .google-login-section #logout-button {
+            padding: 5px 10px;
+            background: rgba(255, 51, 102, 0.2);
+            border: 1px solid var(--error);
+            color: var(--error);
+            border-radius: 5px;
+            font-size: 10px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            white-space: nowrap;
+            display: none; /* Hidden by default */
+        }
+
+        .google-login-section #logout-button:hover {
+            background: var(--error);
+            color: var(--text-primary);
+            box-shadow: 0 0 10px rgba(255, 51, 102, 0.5);
+        }
+
+        /* Hide Google Sign-In button initially or when logged in */
+        .g_id_signin {
+            display: block; /* Overrides GSI default if needed, ensure it shows when logged out */
+        }
+        /* END NEW */
         
         /* Main container */
         .container {
@@ -524,7 +567,27 @@
             }
             
             .status-right {
-                display: none;
+                flex-direction: column; /* Stack login elements on small screens */
+                align-items: flex-end;
+                gap: 5px; /* Reduce gap */
+            }
+
+            .google-login-section {
+                flex-direction: column;
+                align-items: flex-end;
+                gap: 5px;
+            }
+            .google-login-section #auth-status {
+                max-width: 100px; /* Adjust max-width for smaller screens */
+                text-align: right;
+            }
+            .google-login-section .g_id_signin {
+                transform: scale(0.8); /* Shrink Google button */
+                transform-origin: right;
+            }
+            .google-login-section #logout-button {
+                font-size: 9px;
+                padding: 3px 8px;
             }
             
             .chat-title {
@@ -600,17 +663,28 @@
     </style>
 </head>
 <body>
-    <!-- Status Bar -->
     <div class="status-bar">
         <div class="status-left">
-            <div class="logo">MAI</div>
+            <div class="logo">真愛 MAI</div>
             <div class="status-indicator">
                 <div class="status-dot"></div>
                 <span id="system-status">ONLINE</span>
             </div>
         </div>
         <div class="status-right">
-
+            <div class="google-login-section">
+                <div id="g_id_onload"
+                     data-client_id="447338774356-u5kq9ap0pann8igrkdhpn0l8i2vl1j4l.apps.googleusercontent.com" data-callback="handleCredentialResponse"
+                     data-auto_prompt="false">
+                </div>
+                <div class="g_id_signin"
+                     data-type="icon" data-size="small"
+                     data-theme="outline"
+                     data-shape="circle">
+                </div>
+                <span id="auth-status">Not logged in.</span>
+                <button id="logout-button">Logout</button>
+            </div>
             <div class="status-item">
                 <span>LATENCY:</span>
                 <span class="status-value" id="latency">0ms</span>
@@ -623,20 +697,15 @@
     </div>
 
     <div class="container">
-        <!-- Chat Header -->
         <div class="chat-header">
             <h1 class="chat-title">Neural Interface</h1>
             <p class="chat-subtitle">Emotionally Intelligent AI Assistant</p>
         </div>
 
-        <!-- Chat Container -->
         <div class="chat-container">
-            <!-- Messages Area -->
             <div class="messages-container" id="messages">
-                <!-- Messages will be inserted here -->
-            </div>
+                </div>
 
-            <!-- Typing Indicator -->
             <div class="typing-indicator" id="typing-indicator">
                 <div class="message-avatar">M</div>
                 <div>
@@ -650,7 +719,6 @@
             </div>
         </div>
 
-        <!-- Input Area -->
         <div class="input-area">
             <div class="input-group">
                 <textarea 
@@ -671,12 +739,16 @@
         </div>
     </div>
 
-    <!-- Floating Audio Button -->
-    <button class="audio-float" id="audio-btn" title="Voice Interface">
+    <a href="/audio_interface" class="audio-float" id="audio-btn" title="Voice Interface">
         🎤
-    </button>
+    </a>
 
     <script>
+        // NEW: Global variables for authentication status
+        let currentUserId = null;
+        let currentUserEmail = null;
+        let currentUserName = null;
+
         class MaiInterface {
             constructor() {
                 this.messagesContainer = document.getElementById('messages');
@@ -704,6 +776,8 @@
                 await this.loadChatHistory();
                 await this.updateStats();
                 this.checkSystemHealth();
+                // NEW: Initial update for auth status
+                updateAuthStatus(null, null, null); 
                 
                 // Auto-refresh stats every 30 seconds
                 //setInterval(() => this.updateStats(), 30000);
@@ -721,12 +795,41 @@
                 this.clearChatBtn.addEventListener('click', () => this.clearChat());
                 this.clearMemoryBtn.addEventListener('click', () => this.clearMemory());
                 this.refreshStatsBtn.addEventListener('click', () => this.updateStats());
-                this.audioBtn.addEventListener('click', () => this.goToAudioInterface());
+                // No direct click listener on audioBtn, it's an <a> tag now
                 
                 // Auto-resize textarea
                 this.messageInput.addEventListener('input', () => {
                     this.messageInput.style.height = 'auto';
                     this.messageInput.style.height = Math.min(this.messageInput.scrollHeight, 150) + 'px';
+                });
+
+                // NEW: Logout button listener
+                document.getElementById('logout-button').addEventListener('click', async () => {
+                    if (this.isProcessing) {
+                        this.showError("Cannot log out while processing. Please wait.");
+                        return;
+                    }
+                    try {
+                        const res = await fetch('/logout', { method: 'POST' });
+                        const data = await res.json();
+                        if (data.success) {
+                            console.log('Logged out successfully.');
+                            updateAuthStatus(null, null, null);
+                            this.messagesContainer.innerHTML = ''; // Clear chat history on logout
+                            this.messageCounter = 0;
+                            this.updateMessageCount();
+                            this.showSuccess('Logged out successfully!');
+                            // Also trigger Google's sign-out (optional, but good practice)
+                            if (window.google && window.google.accounts && window.google.accounts.id) {
+                                window.google.accounts.id.disableAutoSelect(); // Prevent immediate re-login
+                            }
+                        } else {
+                            this.showError('Logout failed: ' + data.message);
+                        }
+                    } catch (error) {
+                        console.error('Error during logout:', error);
+                        this.showError('Error during logout process. Please try again.');
+                    }
                 });
             }
             
@@ -871,11 +974,12 @@
                     if (response.ok) {
                         const data = await response.json();
                         
-                        if (data.messages && data.messages.length > 0) {
-                            data.messages.forEach(msg => {
+                        // Check for 'chat_history' which is the key used in app.py's get_chat_history_endpoint
+                        if (data.chat_history && data.chat_history.length > 0) {
+                            data.chat_history.forEach(msg => {
                                 this.addMessage(msg.role === 'user' ? 'user' : 'assistant', msg.content);
                             });
-                            this.messageCounter = data.messages.length;
+                            this.messageCounter = data.chat_history.length;
                             this.updateMessageCount();
                         }
                     }
@@ -890,8 +994,7 @@
                     
                     if (response.ok) {
                         const data = await response.json();
-                        // No longer trying to update memoryUsage.textContent as it's removed from HTML
-                        // You could still log data if needed for debugging other stats
+                        // You can display more stats here if needed, e.g., in a separate section
                         // console.log("Memory stats received:", data); 
                     }
                 } catch (error) {
@@ -961,7 +1064,7 @@
             
             showSuccess(message) {
                 const successDiv = document.createElement('div');
-                successDiv.className = 'error-message';
+                successDiv.className = 'error-message'; // Reusing error-message styles, but overriding colors
                 successDiv.style.background = 'rgba(0, 255, 136, 0.1)';
                 successDiv.style.borderColor = 'var(--success)';
                 successDiv.style.color = 'var(--success)';
@@ -982,18 +1085,82 @@
                 }, 300);
             }
             
-            goToAudioInterface() {
-                window.location.href = '/audio_interface';
-            }
+            // Removed goToAudioInterface as the button is now an <a> tag
             
             delay(ms) {
                 return new Promise(resolve => setTimeout(resolve, ms));
             }
         }
         
+        // NEW: Google authentication functions (outside MaiInterface class for global access by GSI)
+        function updateAuthStatus(userId, email, name) {
+            currentUserId = userId;
+            currentUserEmail = email;
+            currentUserName = name;
+            const authStatusSpan = document.getElementById('auth-status');
+            const logoutButton = document.getElementById('logout-button');
+            const googleSignInButton = document.querySelector('.g_id_signin');
+
+            if (userId) {
+                authStatusSpan.textContent = `${name || email.split('@')[0].capitalize()} (ID: ${userId.substring(0, 8)}...)`;
+                logoutButton.style.display = 'inline-block';
+                googleSignInButton.style.display = 'none'; // Hide sign-in button after login
+            } else {
+                authStatusSpan.textContent = 'Not logged in.';
+                logoutButton.style.display = 'none';
+                googleSignInButton.style.display = 'block'; // Show sign-in button if logged out
+            }
+        }
+
+        async function handleCredentialResponse(response) {
+            if (response.credential) {
+                const idToken = response.credential;
+                try {
+                    const res = await fetch('/google_login', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({ id_token: idToken }),
+                    });
+                    const data = await res.json();
+                    if (data.success) {
+                        console.log('Google login successful:', data);
+                        updateAuthStatus(data.user_id, data.email, data.name);
+                        // Access the MaiInterface instance to show success message and load chat history
+                        const maiInterface = window.maiInterfaceInstance; // Assuming it's stored globally
+                        if (maiInterface) {
+                            maiInterface.showSuccess(`Welcome, ${data.name || data.email.split('@')[0].capitalize()}!`);
+                            await maiInterface.loadChatHistory(); // Reload history with new user context
+                        }
+                    } else {
+                        console.error('Google login failed:', data.error);
+                        const maiInterface = window.maiInterfaceInstance;
+                        if (maiInterface) {
+                            maiInterface.showError('Google login failed: ' + data.error);
+                        }
+                    }
+                } catch (error) {
+                    console.error('Error sending ID token to backend:', error);
+                    const maiInterface = window.maiInterfaceInstance;
+                    if (maiInterface) {
+                        maiInterface.showError('Error during login process. Please try again.');
+                    }
+                }
+            }
+        }
+
+        // Add capitalize method to String prototype for convenience
+        if (!String.prototype.capitalize) {
+            String.prototype.capitalize = function() {
+                return this.charAt(0).toUpperCase() + this.slice(1);
+            }
+        }
+        // END NEW
+
         // Initialize the interface when DOM is loaded
         document.addEventListener('DOMContentLoaded', () => {
-            new MaiInterface();
+            window.maiInterfaceInstance = new MaiInterface(); // Store instance globally for GSI callback
         });
         
         // Add some interactive effects

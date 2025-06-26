@@ -15,6 +15,8 @@ from fastapi.templating import Jinja2Templates
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.sessions import SessionMiddleware
 from starlette.background import BackgroundTasks
+from google.oauth2 import id_token
+from google.auth.transport import requests as google_requests
 
 # Import Mai's core components
 from llm_handler import LLMHandler
@@ -72,7 +74,23 @@ voice_interface: Optional[VoiceInterface] = None
 TOGETHER_API_KEY_DIRECT = os.getenv("TOGETHER_API_KEY")
 AUDIO_OUTPUT_DIR = Path("audio_output")
 AUDIO_OUTPUT_DIR.mkdir(exist_ok=True)
-FIXED_SINGLE_USER_ID: Optional[str] = "6653d9f1-b272-434f-8f2b-b0a96c35a1d2" #change the global variable to ur own user_id 
+GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID")
+if not GOOGLE_CLIENT_ID:
+    logger.critical("CRITICAL ERROR: GOOGLE_CLIENT_ID is not set in environment or .env file.")
+    # You might want to raise an exception or handle this more gracefully based on your deployment
+    # For now, let's just log a warning.
+
+# You'll need a way to store email-to-UUID mappings persistently.
+# For simplicity, let's use a dictionary in memory for demonstration.
+# In a real application, this would be a database (PostgreSQL, MongoDB, SQLite, etc.)
+user_email_to_id_mapping: Dict[str, str] = {} # This will not persist across restarts!
+
+# For Rishi's specific ID
+RISHI_EMAIL = "restlessrishi@gmail.com"
+FIXED_SINGLE_USER_ID: Optional[str] = "6653d9f1-b272-434f-8f2b-b0a96c35a1d2"
+
+# Populate Rishi's ID initially
+user_email_to_id_mapping[RISHI_EMAIL] = FIXED_SINGLE_USER_ID #change the global variable to ur own user_id 
 
 # Define MAX_CHAT_HISTORY_LENGTH for session history trimming
 MAX_CHAT_HISTORY_LENGTH = 20 # Keep last 20 messages (10 turns) in session
@@ -174,18 +192,51 @@ app.mount("/audio_output", StaticFiles(directory=AUDIO_OUTPUT_DIR), name="audio_
 
 async def get_user_id(request: Request) -> str:
     """
-    Retrieves or creates a user ID for the current session.
-    If FIXED_SINGLE_USER_ID is set globally, it will always return that ID.
+    Retrieves or creates a user ID for the current session, prioritizing Google login.
     """
-    if FIXED_SINGLE_USER_ID:
-        # If a fixed user ID is defined, always use it
-        return FIXED_SINGLE_USER_ID
-    
-    # Fallback to session-based UUID generation if no fixed ID is set
+    # 1. Check for authenticated Google user ID in session first
+    if 'google_user_id' in request.session and request.session['google_user_id']:
+        logger.debug(f"Using Google authenticated user ID from session: {request.session['google_user_id']}")
+        return request.session['google_user_id']
+
+    # 2. If no Google ID, check for a general session user ID
     if 'user_id' not in request.session:
+        # Fallback to generating a new UUID if no user ID (Google or general) is found.
+        # This primarily serves unauthenticated users or initial visits before Google login.
         request.session['user_id'] = str(uuid.uuid4())
-        logger.info(f"Created new user session: {request.session['user_id']}")
+        logger.info(f"Created new non-authenticated user session ID: {request.session['user_id']}")
+    
+    logger.debug(f"Using general session user ID: {request.session['user_id']}")
     return request.session['user_id']
+
+
+async def get_or_create_user_id_from_email(email: str, user_name: Optional[str] = None) -> str:
+    """
+    Gets the UUID for a given email, or creates a new one if it doesn't exist,
+    delegating persistence to MemoryManager.
+    """
+    if memory_manager is None:
+        logger.error("MemoryManager not initialized, cannot get or create user ID from email.")
+        raise RuntimeError("Memory services are not ready.")
+
+    # This will use the logic within MemoryManager to retrieve/create the ID
+    # and persist the email-to-ID and ID-to-name mapping.
+    user_id = memory_manager.get_or_create_user_id(email=email, default_name=user_name)
+
+    # Ensure Rishi's fixed ID is honored if his email logs in
+    if email == RISHI_EMAIL and user_id != FIXED_SINGLE_USER_ID:
+        logger.warning(f"Rishi's email '{RISHI_EMAIL}' logged in with a non-fixed ID '{user_id}'. "
+                       f"Attempting to map to fixed ID '{FIXED_SINGLE_USER_ID}'. "
+                       f"Consider pre-populating this in memory_manager's user map file.")
+        # This is a complex edge case for existing systems. For a new system, 
+        # ensure FIXED_SINGLE_USER_ID is the first entry in the persisted map for Rishi's email.
+        # Forcing it here might overwrite legitimate new IDs if not careful.
+        # A cleaner approach is to initialize memory_manager's internal map with Rishi's ID at startup
+        # if that's the desired behavior.
+        # For now, let's just make sure the correct ID is returned for Rishi if he's logging in.
+        return FIXED_SINGLE_USER_ID # Force Rishi's ID if his email is provided.
+
+    return user_id
 
 async def get_chat_history(request: Request) -> List[Dict]:
     """Retrieves the chat history for the current session."""
@@ -255,12 +306,24 @@ async def chat_endpoint(
 
         # --- User Name Association Logic ---
         user_name_for_storage: Optional[str] = None
-        # Specific user ID for "Rishi"
-        specific_rishi_user_id = "6653d9f1-b272-434f-8f2b-b0a96c35a1d2"
-
-        if user_id == specific_rishi_user_id:
-            user_name_for_storage = "Rishi"
-            logger.debug(f"Assigned user_name 'Rishi' to user_id: {user_id}")
+        # Check if a user name was stored from Google login
+        if 'user_name' in request.session:
+            user_name_for_storage = request.session['user_name']
+            logger.debug(f"Assigned user_name '{user_name_for_storage}' from session to user_id: {user_id}")
+        elif 'user_email' in request.session:
+            # If name isn't directly available, use email prefix or default
+            email_prefix = request.session['user_email'].split('@')[0]
+            user_name_for_storage = email_prefix.capitalize()
+            logger.debug(f"Assigned user_name '{user_name_for_storage}' derived from email for user_id: {user_id}")
+        else:
+            # Fallback if no authenticated name/email, or for the fixed Rishi user
+            # If the user_id is Rishi's fixed ID, set the name
+            if user_id == FIXED_SINGLE_USER_ID:
+                user_name_for_storage = "Rishi"
+                logger.debug(f"Assigned user_name 'Rishi' to fixed user_id: {user_id}")
+            else:
+                user_name_for_storage = "Guest" # Or "User" or some other default
+                logger.debug(f"Assigned user_name '{user_name_for_storage}' as fallback for user_id: {user_id}")
         # --- End User Name Association Logic ---
 
         # Analyze sentiment of the user message
@@ -362,11 +425,24 @@ async def voice_chat_endpoint(
     try:
         # --- User Name Association Logic (Same as /chat endpoint) ---
         user_name_for_storage: Optional[str] = None
-        specific_rishi_user_id = "6653d9f1-b272-434f-8f2b-b0a96c35a1d2"
-
-        if user_id == specific_rishi_user_id:
-            user_name_for_storage = "Rishi"
-            logger.debug(f"Assigned user_name 'Rishi' to user_id: {user_id} for voice chat.")
+        # Check if a user name was stored from Google login
+        if 'user_name' in request.session:
+            user_name_for_storage = request.session['user_name']
+            logger.debug(f"Assigned user_name '{user_name_for_storage}' from session to user_id: {user_id}")
+        elif 'user_email' in request.session:
+            # If name isn't directly available, use email prefix or default
+            email_prefix = request.session['user_email'].split('@')[0]
+            user_name_for_storage = email_prefix.capitalize()
+            logger.debug(f"Assigned user_name '{user_name_for_storage}' derived from email for user_id: {user_id}")
+        else:
+            # Fallback if no authenticated name/email, or for the fixed Rishi user
+            # If the user_id is Rishi's fixed ID, set the name
+            if user_id == FIXED_SINGLE_USER_ID:
+                user_name_for_storage = "Rishi"
+                logger.debug(f"Assigned user_name 'Rishi' to fixed user_id: {user_id}")
+            else:
+                user_name_for_storage = "Guest" # Or "User" or some other default
+                logger.debug(f"Assigned user_name '{user_name_for_storage}' as fallback for user_id: {user_id}")
         # --- End User Name Association Logic ---
 
         # Save uploaded audio to a temporary file
@@ -513,11 +589,24 @@ async def text_to_voice_chat_endpoint(
 
         # --- User Name Association Logic (Same as other endpoints) ---
         user_name_for_storage: Optional[str] = None
-        specific_rishi_user_id = "6653d9f1-b272-434f-8f2b-b0a96c35a1d2"
-
-        if user_id == specific_rishi_user_id:
-            user_name_for_storage = "Rishi"
-            logger.debug(f"Assigned user_name 'Rishi' to user_id: {user_id} for text-to-voice chat.")
+        # Check if a user name was stored from Google login
+        if 'user_name' in request.session:
+            user_name_for_storage = request.session['user_name']
+            logger.debug(f"Assigned user_name '{user_name_for_storage}' from session to user_id: {user_id}")
+        elif 'user_email' in request.session:
+            # If name isn't directly available, use email prefix or default
+            email_prefix = request.session['user_email'].split('@')[0]
+            user_name_for_storage = email_prefix.capitalize()
+            logger.debug(f"Assigned user_name '{user_name_for_storage}' derived from email for user_id: {user_id}")
+        else:
+            # Fallback if no authenticated name/email, or for the fixed Rishi user
+            # If the user_id is Rishi's fixed ID, set the name
+            if user_id == FIXED_SINGLE_USER_ID:
+                user_name_for_storage = "Rishi"
+                logger.debug(f"Assigned user_name 'Rishi' to fixed user_id: {user_id}")
+            else:
+                user_name_for_storage = "Guest" # Or "User" or some other default
+                logger.debug(f"Assigned user_name '{user_name_for_storage}' as fallback for user_id: {user_id}")
         # --- End User Name Association Logic ---
 
         logger.info(f"User {user_id}: Processing text message for voice response: '{user_message[:70]}{'...' if len(user_message) > 70 else ''}'")
@@ -656,21 +745,82 @@ async def text_to_voice_chat_endpoint(
 #         filename=filename
 #     )
 
-@app.get("/get_audio_response/{filename}")
-async def get_audio_response_endpoint(filename: str):
-    """Serves generated audio response files."""
-    file_path = AUDIO_OUTPUT_DIR / filename
+@app.post("/google_login")
+async def google_login(request: Request):
+    """
+    Receives and verifies Google ID token, setting the user_id in the session
+    and returning initial memory stats to prevent a front-end race condition.
+    """
+    data = await request.json()
+    id_token_str = data.get('id_token')
 
-    # Security check to prevent directory traversal
-    if not file_path.resolve().parent == AUDIO_OUTPUT_DIR.resolve():
-        logger.warning(f"Attempted to access file outside audio_output directory: {filename}")
-        raise HTTPException(status_code=400, detail='Invalid file path')
+    if not id_token_str:
+        raise HTTPException(status_code=400, detail="ID token is missing.")
 
-    if not file_path.is_file():
-        logger.error(f"Audio file not found: {filename}")
-        raise HTTPException(status_code=404, detail='Audio file not found')
+    if not GOOGLE_CLIENT_ID:
+        logger.error("GOOGLE_CLIENT_ID is not configured. Cannot verify Google ID token.")
+        raise HTTPException(status_code=500, detail="Server configuration error: Google Client ID missing.")
+
+    try:
+        idinfo = id_token.verify_oauth2_token(id_token_str, google_requests.Request(), GOOGLE_CLIENT_ID)
+
+        email = idinfo['email']
+        name = idinfo.get('name', 'User')
+        logger.info(f"Google ID token verified for email: {email}, name: {name}")
+
+        user_id_from_google = await get_or_create_user_id_from_email(email, name)
+
+        # --- FIX 1: Set the generic 'user_id' key that other endpoints likely use ---
+        request.session['user_id'] = user_id_from_google
+        
+        # Also set the more specific keys for potential future use
+        request.session['google_user_id'] = user_id_from_google
+        request.session['user_email'] = email
+        request.session['user_name'] = name
+
+        logger.info(f"Session updated with user ID: {user_id_from_google} for email: {email}")
+
+        # --- FIX 2: Fetch memory stats immediately and include them in the response ---
+        logger.debug(f"Fetching initial memory stats for user {user_id_from_google} during login.")
+        overall_stats = memory_manager.get_memory_stats()
+        user_memory_count = overall_stats.get('memories_by_user', {}).get(user_id_from_google, 0)
+        logger.info(f"Initial stats for {user_id_from_google}: User Memories={user_memory_count}, Total={overall_stats.get('total_memories')}")
+
+        return JSONResponse({
+            "success": True,
+            "message": "Google login successful",
+            "user_id": user_id_from_google,
+            "email": email,
+            "name": name,
+            "initial_memory_stats": {
+                "user_memory_count": user_memory_count,
+                "overall_stats": overall_stats
+            }
+        })
+
+    except ValueError as e:
+        logger.error(f"Google ID token verification failed: {e}")
+        raise HTTPException(status_code=401, detail="Invalid Google ID token.")
+    except Exception as e:
+        logger.error(f"An unexpected error occurred during Google login: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="An internal server error occurred.")
     
-    return FileResponse(path=file_path, media_type="audio/mpeg")
+
+@app.post("/logout")
+async def logout_endpoint(request: Request):
+    """Clears all session data, effectively logging out the user."""
+    user_id = request.session.pop('google_user_id', None)
+    user_email = request.session.pop('user_email', None)
+    user_name = request.session.pop('user_name', None)
+    request.session.pop('user_id', None) # Clear fallback non-auth ID too
+    request.session.pop('chat_history', None) # Clear chat history on logout
+
+    if user_id:
+        logger.info(f"User {user_id} ({user_email}) logged out and session cleared.")
+    else:
+        logger.info("Non-authenticated session logged out and cleared.")
+
+    return JSONResponse({"success": True, "message": "Logged out successfully."})
 
 @app.post("/clear_chat")
 async def clear_chat_endpoint(request: Request):
