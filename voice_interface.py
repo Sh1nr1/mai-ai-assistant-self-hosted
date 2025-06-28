@@ -1,46 +1,49 @@
 """
 Voice Interface for Mai - Emotionally Intelligent AI Assistant
-Handles voice input/output for natural conversation with Mai
-Enhanced with Hindi to English translation capability
+Handles voice input/output, orchestrating transcription, LLM interaction, and TTS.
+Now includes self-sentiment analysis for expressive responses.
 """
 
 import os
-import io
-import wave
 import time
 import asyncio
-import threading
 import logging
-from typing import Any
-from typing import Optional, Dict, List, Tuple, Callable
+import uuid
+from typing import Any, Optional, Dict, List, Callable
 from pathlib import Path
-import uuid # Import uuid for generating unique filenames
 
-# Audio processing imports
+# --- Local Application Imports ---
+from llm_handler import LLMHandler
+# Import the sentiment analyzer for both user input AND Mai's output
+from sentiment_analysis import analyze_sentiment, initialize_sentiment_analysis
+# The new, modular way to handle Text-to-Speech
+from tts_manager import TTSManager, EdgeTTSManager 
+
+# --- Audio Processing Imports ---
 try:
     import pyaudio
     import numpy as np
     HAS_PYAUDIO = True
 except ImportError:
     HAS_PYAUDIO = False
-    logging.warning("PyAudio not available. Voice input from live microphone will be disabled.")
+    logging.warning("PyAudio not available. Voice input from a live microphone will be disabled.")
 
-# Speech recognition imports
+# --- Speech Recognition Imports ---
 try:
     import speech_recognition as sr
     HAS_SPEECH_RECOGNITION = True
 except ImportError:
     HAS_SPEECH_RECOGNITION = False
-    logging.warning("SpeechRecognition not available. Using placeholder for voice input.")
+    logging.warning("SpeechRecognition not available. Using a placeholder for voice input.")
 
 try:
     import whisper
     HAS_WHISPER = True
 except ImportError:
     HAS_WHISPER = False
-    logging.warning("Whisper not available. Falling back to Google Speech Recognition for live mic or disabling file transcription.")
+    logging.warning("Whisper not available. Falling back to Google Speech Recognition or disabling file transcription.")
 
-# Translation imports
+# --- Translation Imports ---
 try:
     from googletrans import Translator
     HAS_GOOGLETRANS = True
@@ -48,909 +51,421 @@ except ImportError:
     HAS_GOOGLETRANS = False
     logging.warning("googletrans not available. Hindi translation will be disabled.")
 
-# Text-to-speech imports
-try:
-    import edge_tts
-    HAS_EDGE_TTS = True
-except ImportError:
-    HAS_EDGE_TTS = False
-    logging.warning("Edge TTS not available. Voice output will be disabled.")
-
-# Audio playback
+# --- Audio Playback Imports ---
 try:
     import pygame
     HAS_PYGAME = True
 except ImportError:
+    HAS_PYGAME = False
     try:
         import playsound
         HAS_PLAYSOUND = True
-        HAS_PYGAME = False
     except ImportError:
         HAS_PLAYSOUND = False
-        HAS_PYGAME = False
-        logging.warning("No audio playback library available (pygame/playsound).")
-
-from llm_handler import LLMHandler
-import asyncio
-from tenacity import retry, wait_exponential, stop_after_attempt, retry_if_exception_type
-import httpx # edge_tts uses httpx internally for some things, or aiohttp
-from sentiment_analysis import analyze_sentiment #sentiment analysis import
+        logging.warning("No audio playback library available (pygame/playsound). Voice output will not be played.")
 
 
-# Configure logging
+# --- Global Configuration ---
 logging.basicConfig(level=logging.INFO, format='%(levelname)s:%(name)s:%(message)s')
 logger = logging.getLogger(__name__)
 
+
 class VoiceInterface:
-    """Handles voice input and output for Mai's conversational AI"""
+    """Orchestrates the voice conversation flow for Mai."""
     
-    def __init__(self, llm_handler: LLMHandler, voice_name: str = "en-US-AnaNeural", 
+    def __init__(self, llm_handler: LLMHandler, tts_manager: TTSManager, 
                  enable_hindi_translation: bool = True):
         """
-        Initialize voice interface.
-        
+        Initialize the voice interface.
+
         Args:
-            llm_handler: Instance of LLMHandler for generating responses
-            voice_name: Edge TTS voice to use for Mai's responses
-            enable_hindi_translation: Whether to enable Hindi to English translation
+            llm_handler: An instance of LLMHandler for generating text responses.
+            tts_manager: A configured instance of a class that implements the TTSManager interface
+                         (e.g., EdgeTTSManager). This is dependency injection.
+            enable_hindi_translation: Whether to enable Hindi to English translation for input.
         """
         self.llm_handler = llm_handler
-        self.voice_name = voice_name
+        self.tts_manager = tts_manager
         self.enable_hindi_translation = enable_hindi_translation
-        self.audio_output_dir = Path("audio_output") # This path is used by app.py
+        
+        self.audio_output_dir = Path("audio_output")
         self.audio_output_dir.mkdir(exist_ok=True)
         
-        # Initialize translator if available and enabled
         self.translator = None
-        if self.enable_hindi_translation and HAS_GOOGLETRANS:
-            self.translator = Translator()
-            logger.info("Hindi to English translation enabled")
-        elif self.enable_hindi_translation and not HAS_GOOGLETRANS:
-            logger.warning("Hindi translation requested but googletrans not available. Install with: pip install googletrans==4.0.0-rc1")
+        if self.enable_hindi_translation:
+            if HAS_GOOGLETRANS:
+                self.translator = Translator()
+                logger.info("Hindi to English translation enabled.")
+            else:
+                logger.warning("Hindi translation requested but 'googletrans' is not available. Install with: pip install googletrans==4.0.0-rc1")
         
-        # Audio settings
+        # Audio settings for microphone
         self.sample_rate = 16000
         self.chunk_size = 1024
-        self.audio_format = pyaudio.paInt16 if HAS_PYAUDIO else None
-        self.channels = 1
         
-        # Voice activity detection settings
-        self.silence_threshold = 500  # Adjust based on environment
-        self.silence_duration = 2.0   # Seconds of silence before stopping
-        
-        # Initialize speech recognition for live mic input
-        if HAS_SPEECH_RECOGNITION:
+        # Speech recognition setup
+        self.recognizer = None
+        self.microphone = None
+        if HAS_SPEECH_RECOGNITION and HAS_PYAUDIO:
             self.recognizer = sr.Recognizer()
-            self.microphone = sr.Microphone()
+            self.microphone = sr.Microphone(sample_rate=self.sample_rate)
             self._calibrate_microphone()
         
-        # Initialize Whisper model (load on first use)
+        # Whisper model (loaded on first use to save memory)
         self.whisper_model = None
-        global HAS_PYGAME
-        # Initialize pygame for audio playback
+        
+        # Pygame mixer initialization for playback
+        self.is_pygame_ready = False  # Instance variable to track pygame's initialized state.
         if HAS_PYGAME:
             try:
                 pygame.mixer.init()
-                logger.info("Pygame mixer initialized successfully in VoiceInterface.")
+                self.is_pygame_ready = True
+                logger.info("Pygame mixer initialized successfully.")
             except Exception as e:
-                logger.error(f"CRITICAL: Failed to initialize Pygame mixer in VoiceInterface: {e}")
-                HAS_PYGAME = False # Ensure we don't try to use it if initialization fails
+                # is_pygame_ready remains False
+                logger.error(f"CRITICAL: Failed to initialize Pygame mixer: {e}")
         
         # State management
         self.is_listening = False
         self.is_speaking = False
-        # self.chat_history = []
-        # self.memory_context = []
         
-        logger.info(f"VoiceInterface initialized with voice: {self.voice_name}")
+        logger.info(f"VoiceInterface initialized with TTS Manager: {type(tts_manager).__name__}")
     
     def _calibrate_microphone(self):
-        """Calibrate microphone for ambient noise"""
-        if not HAS_SPEECH_RECOGNITION:
+        """Calibrates the microphone for ambient noise to improve recognition."""
+        if not self.recognizer or not self.microphone:
             return
-            
         try:
             with self.microphone as source:
                 logger.info("Calibrating microphone for ambient noise... Please be quiet.")
-                self.recognizer.adjust_for_ambient_noise(source, duration=1)
+                self.recognizer.adjust_for_ambient_noise(source, duration=1.5)
                 logger.info("Microphone calibration complete.")
         except Exception as e:
-            logger.error(f"Failed to calibrate microphone: {e}")
+            logger.error(f"Could not calibrate microphone: {e}")
     
     def _load_whisper_model(self):
-        """Loads the Whisper model if not already loaded."""
+        """Loads the Whisper ASR model if it hasn't been loaded yet."""
         if self.whisper_model is None:
             if not HAS_WHISPER:
                 raise ImportError("Whisper library is not installed. Cannot load model.")
             logger.info("Loading Whisper model (this may take a moment)...")
-            # Using 'base' model for general purpose. Consider 'base.en' for English-only.
+            # Using 'base' model is a good balance. 'tiny' is faster, 'medium' is more accurate.
             self.whisper_model = whisper.load_model("base") 
-            logger.info("Whisper model loaded.")
+            logger.info("Whisper model loaded successfully.")
 
     async def _translate_hindi_to_english(self, text: str) -> Dict[str, Any]:
-        """
-        Translate Hindi text to English using Google Translate.
-        
-        Args:
-            text: Hindi text to translate
-            
-        Returns:
-            Dict containing translation result with keys:
-            - success (bool): Whether translation was successful
-            - translated_text (str): Translated text (empty if failed)
-            - original_text (str): Original text
-            - error (str): Error message if translation failed
-        """
+        """Translates Hindi text to English if translation is enabled."""
         if not self.translator or not self.enable_hindi_translation:
-            return {
-                'success': False,
-                'translated_text': '',
-                'original_text': text,
-                'error': 'Translation not available or disabled'
-            }
+            return {'success': False, 'error': 'Translation not available or disabled'}
         
         try:
-            logger.info(f"Translating Hindi text to English: '{text}'")
-            
-            # Perform translation
-            result = await self.translator.translate(text, src='hi', dest='en')
-            logger.debug(f"Translation result object type: {type(result)}")
-            logger.debug(f"Translation result content: {result}")
+            loop = asyncio.get_event_loop()
+            result = await loop.run_in_executor(None, self.translator.translate, text, 'en', 'hi')
             translated_text = result.text.strip()
-            
             if translated_text:
                 logger.info(f"Translation successful: '{text}' -> '{translated_text}'")
-                return {
-                    'success': True,
-                    'translated_text': translated_text,
-                    'original_text': text,
-                    'error': None
-                }
+                return {'success': True, 'translated_text': translated_text, 'original_text': text}
             else:
-                logger.warning(f"Translation returned empty result for: '{text}'")
-                return {
-                    'success': False,
-                    'translated_text': '',
-                    'original_text': text,
-                    'error': 'Translation returned empty result'
-                }
-                
+                logger.warning(f"Translation returned an empty result for: '{text}'")
+                return {'success': False, 'error': 'Translation returned empty result'}
         except Exception as e:
             error_msg = f"Translation failed for '{text}': {e}"
             logger.error(error_msg)
-            return {
-                'success': False,
-                'translated_text': '',
-                'original_text': text,
-                'error': error_msg
-            }
+            return {'success': False, 'error': error_msg}
 
     async def transcribe_audio_file(self, file_path: Path) -> Dict[str, Any]:
-        """
-        Transcribes an audio file from a given path using Whisper model.
-        Enhanced with automatic Hindi to English translation.
-        This method is suitable for audio blobs received from frontend.
-
-        Args:
-            file_path: Path to the audio file (e.g., .webm, .wav, .mp3).
-
-        Returns:
-            Dict[str, Any]: A dictionary containing:
-                'success' (bool): True if transcription was successful, False otherwise.
-                'transcribed_text' (str): The transcribed text if successful, else an empty string.
-                'original_text' (str): Original transcribed text before translation (if applicable).
-                'language' (str): Detected language code.
-                'was_translated' (bool): Whether text was translated from Hindi to English.
-                'error' (str): Error message if transcription failed.
-        """
+        """Transcribes an audio file using Whisper, with optional Hindi translation."""
         if not HAS_WHISPER:
-            error_msg = "Whisper is not available. Cannot transcribe audio file."
-            logger.error(error_msg)
-            return {
-                'success': False, 
-                'transcribed_text': '', 
-                'original_text': '',
-                'language': 'en', 
-                'was_translated': False,
-                'error': error_msg
-            }
-        
+            return {'success': False, 'error': "Whisper is not available."}
         if not file_path.exists():
-            error_msg = f"Audio file not found: {file_path}"
-            logger.error(error_msg)
-            return {
-                'success': False, 
-                'transcribed_text': '', 
-                'original_text': '',
-                'language': 'en', 
-                'was_translated': False,
-                'error': error_msg
-            }
+            return {'success': False, 'error': f"Audio file not found: {file_path}"}
 
         try:
-            self._load_whisper_model() # Ensure model is loaded
-
-            logger.info(f"Attempting to transcribe audio file: {file_path}")
+            self._load_whisper_model()
+            logger.info(f"Transcribing audio file: {file_path}")
             result = self.whisper_model.transcribe(str(file_path))
             text = result["text"].strip()
-            raw_detected_language = result.get("language")
+            lang = result.get("language", "en")
             
-            # Define the allowed languages
-            allowed_languages = ['en', 'hi']
+            final_text, was_translated, original_text = text, False, text
+            if lang == 'hi' and self.enable_hindi_translation:
+                translation_result = await self._translate_hindi_to_english(text)
+                if translation_result['success']:
+                    final_text = translation_result['translated_text']
+                    was_translated = True
             
-            # Determine the effective language based on allowed languages
-            effective_language = 'en' # Default to English
-            if raw_detected_language in allowed_languages:
-                effective_language = raw_detected_language
-            else:
-                logger.warning(f"Whisper detected language '{raw_detected_language}', which is not 'en' or 'hi'. Defaulting to 'en'.")
-            
-            if text:
-                original_text = text
-                final_text = text
-                was_translated = False
-                
-                # If Hindi is detected and translation is enabled, translate to English
-                if effective_language == 'hi' and self.enable_hindi_translation:
-                    translation_result = await self._translate_hindi_to_english(text)
-                    if translation_result['success']:
-                        final_text = translation_result['translated_text']
-                        was_translated = True
-                        logger.info(f"Hindi audio transcribed and translated: '{original_text}' -> '{final_text}'")
-                    else:
-                        logger.warning(f"Hindi translation failed: {translation_result['error']}. Using original Hindi text.")
-                
-                logger.info(f"Whisper file transcription: '{final_text}' (Language: {effective_language}, Translated: {was_translated})")
-                return {
-                    'success': True, 
-                    'transcribed_text': final_text, 
-                    'original_text': original_text,
-                    'language': effective_language,
-                    'was_translated': was_translated,
-                    'error': None
-                }
-            else:
-                logger.info("Whisper transcribed audio file, but no text was extracted. Returning effective language.")
-                return {
-                    'success': False, 
-                    'transcribed_text': '', 
-                    'original_text': '',
-                    'language': effective_language,
-                    'was_translated': False,
-                    'error': 'No text extracted from audio'
-                }
-            
+            return {'success': True, 'transcribed_text': final_text, 'original_text': original_text, 'language': lang, 'was_translated': was_translated}
         except Exception as e:
-            error_msg = f"Failed to transcribe audio file {file_path} with Whisper: {e}"
-            logger.error(error_msg, exc_info=True) # Log full traceback for debugging
-            # Default to 'en' in case of an error during transcription
-            return {
-                'success': False, 
-                'transcribed_text': '', 
-                'original_text': '',
-                'language': 'en', 
-                'was_translated': False,
-                'error': error_msg
-            }
+            logger.error(f"Failed to transcribe audio file {file_path}: {e}", exc_info=True)
+            return {'success': False, 'error': str(e)}
             
-    async def listen_for_speech(self, timeout: Optional[float] = None) -> Optional[str]:
-        """
-        Listen for speech input from the microphone and convert to text.
-        Enhanced with automatic Hindi to English translation.
-        
-        Args:
-            timeout: Maximum time to wait for speech (None for no timeout)
-            
-        Returns:
-            Transcribed text (translated to English if Hindi was detected) or None if no speech detected/error occurred
-        """
-        if not HAS_SPEECH_RECOGNITION:
+    async def listen_for_speech(self, timeout: Optional[float] = 10.0) -> Optional[str]:
+        """Listens for speech from the microphone and returns the transcribed text."""
+        if not self.recognizer:
             return self._placeholder_speech_input()
         
         try:
             self.is_listening = True
-            logger.info("Listening for speech from microphone...")
-            
+            logger.info("Listening for speech...")
             with self.microphone as source:
-                # Listen for audio with timeout
-                audio = self.recognizer.listen(
-                    source, 
-                    timeout=timeout,
-                    phrase_time_limit=10  # Max 10 seconds per phrase
-                )
-            
+                audio = self.recognizer.listen(source, timeout=timeout, phrase_time_limit=15)
             self.is_listening = False
-            logger.info("Audio captured from microphone, processing...")
+            logger.info("Processing captured audio...")
             
-            # Try Whisper first if available
             if HAS_WHISPER:
                 return await self._transcribe_with_whisper_from_sr_audio(audio)
             else:
                 return await self._transcribe_with_google(audio)
-                
         except sr.WaitTimeoutError:
-            logger.info("No speech detected within timeout period.")
-            self.is_listening = False
-            return None
-        except sr.RequestError as e:
-            logger.error(f"Speech recognition request failed: {e}")
-            self.is_listening = False
-            return None
+            logger.info("No speech detected within the timeout period.")
         except Exception as e:
-            logger.error(f"Error during live speech recognition: {e}")
+            logger.error(f"An error occurred during live speech recognition: {e}")
+        finally:
             self.is_listening = False
-            return None
+        return None
     
-    async def _transcribe_with_whisper_from_sr_audio(self, audio) -> Optional[str]:
-        """
-        Transcribe audio (from speech_recognition.AudioData) using Whisper model.
-        Enhanced with automatic Hindi to English translation.
-        """
+    async def _transcribe_with_whisper_from_sr_audio(self, audio: sr.AudioData) -> Optional[str]:
+        """Helper to transcribe SpeechRecognition audio data with Whisper."""
         try:
-            self._load_whisper_model() # Ensure model is loaded
+            self._load_whisper_model()
+            wav_data = audio.get_wav_data()
+            audio_np = np.frombuffer(wav_data, dtype=np.int16).astype(np.float32) / 32768.0
             
-            # Convert audio to numpy array (Whisper expects float32)
-            audio_data = np.frombuffer(audio.get_wav_data(), dtype=np.int16)
-            audio_data = audio_data.astype(np.float32) / 32768.0
+            result = self.whisper_model.transcribe(audio_np, fp16=False) # fp16=False for CPU
+            text = result['text'].strip()
             
-            # Transcribe
-            result = self.whisper_model.transcribe(audio_data)
-            text = result["text"].strip()
-            detected_language = result.get("language", "en")
-            
-            if text:
-                original_text = text
-                final_text = text
-                
-                # If Hindi is detected and translation is enabled, translate to English
-                if detected_language == 'hi' and self.enable_hindi_translation:
-                    translation_result = await self._translate_hindi_to_english(text)
-                    if translation_result['success']:
-                        final_text = translation_result['translated_text']
-                        logger.info(f"Live Hindi transcribed and translated: '{original_text}' -> '{final_text}'")
-                    else:
-                        logger.warning(f"Live Hindi translation failed: {translation_result['error']}. Using original text.")
-                
-                logger.info(f"Whisper live transcription: '{final_text}' (Language: {detected_language})")
-                return final_text
-            return None
-            
+            if text and result.get('language') == 'hi' and self.enable_hindi_translation:
+                translation = await self._translate_hindi_to_english(text)
+                return translation.get('translated_text', text)
+            return text if text else None
         except Exception as e:
             logger.error(f"Whisper live transcription failed: {e}")
-            # Fallback to Google if Whisper fails for live mic input
-            return await self._transcribe_with_google(audio)
-    
-    async def _transcribe_with_google(self, audio) -> Optional[str]:
-        """Transcribe audio using Google Speech Recognition (for live mic)"""
+            return None
+
+    async def _transcribe_with_google(self, audio: sr.AudioData) -> Optional[str]:
+        """Fallback helper to transcribe with Google's web speech API."""
         try:
             text = self.recognizer.recognize_google(audio)
-            if text:
-                logger.info(f"Google transcription: '{text}'")
-                return text
-            return None
+            return text.strip() if text else None
         except sr.UnknownValueError:
-            logger.info("Google Speech Recognition could not understand audio")
-            return None
+            logger.info("Google Speech Recognition could not understand audio.")
         except sr.RequestError as e:
-            logger.error(f"Google Speech Recognition error: {e}")
-            return None
+            logger.error(f"Google Speech Recognition service error: {e}")
+        return None
     
     def _placeholder_speech_input(self) -> str:
-        """Placeholder for speech input when libraries aren't available"""
+        """Provides a text input prompt when audio hardware is unavailable."""
         print("\n🎤 Voice input not available. Please type your message:")
         return input("You: ").strip()
     
-    @retry(wait=wait_exponential(multiplier=1, min=2, max=10), stop=stop_after_attempt(5),
-           retry=retry_if_exception_type(httpx.ConnectError) | retry_if_exception_type(httpx.ReadError) | \
-                 retry_if_exception_type(asyncio.TimeoutError) | retry_if_exception_type(ConnectionResetError))
-    async def _save_speech_with_retry(self, communicate: edge_tts.Communicate, output_path: Path):
-        """Internal helper to save speech with retry logic."""
-        await communicate.save(str(output_path))
-
-    async def generate_speech(self, text: str, filename: str = "response.mp3") -> str:
-        if not HAS_EDGE_TTS:
-            logger.warning("Edge TTS not available. Cannot generate speech.")
+    async def generate_speech(self, text: str, filename: str, emotion: Optional[str] = None) -> str:
+        """
+        Generates speech by delegating to the TTS manager, now with emotion.
+        """
+        if not self.tts_manager:
+            logger.warning("No TTS manager is configured. Cannot generate speech.")
             return ""
 
-        try:
-            output_path = self.audio_output_dir / filename
-            communicate = edge_tts.Communicate(text, self.voice_name)
-
-            # Use the retry helper
-            await self._save_speech_with_retry(communicate, output_path)
-
-            logger.info(f"Speech generated: {output_path}")
-            return str(output_path)
-
-        except Exception as e:
-            logger.error(f"Failed to generate speech after retries: {e}")
-            return ""
+        output_path = self.audio_output_dir / filename
+        # Pass the emotion to the TTS manager
+        return await self.tts_manager.generate_speech(text, output_path, emotion=emotion)
     
     def play_audio(self, audio_path: str) -> bool:
-        logger.info(f"DEBUG: Attempting to play audio file from path: {audio_path}")
+        """Plays an audio file using pygame or playsound."""
         if not os.path.exists(audio_path):
-            logger.error(f"Audio file not found: {audio_path}")
+            logger.error(f"Cannot play audio. File not found: {audio_path}")
             return False
+        
+        playback_library = "None"
+        if HAS_PYGAME: playback_library = "Pygame"
+        elif HAS_PLAYSOUND: playback_library = "Playsound"
+
+        logger.info(f"Attempting to play '{audio_path}' using {playback_library}.")
         
         try:
             self.is_speaking = True
-            
-            if HAS_PYGAME: # This HAS_PYGAME refers to the global variable
+            if HAS_PYGAME:
                 pygame.mixer.music.load(audio_path)
-                logger.info(f"DEBUG: Loaded {audio_path} into Pygame mixer.")
                 pygame.mixer.music.play()
-                logger.info("DEBUG: Pygame play() called. Checking busy status...")
-                
-                # Wait for playback to complete
-                # Add a counter to confirm the loop is entered
-                busy_checks = 0
                 while pygame.mixer.music.get_busy():
-                    busy_checks += 1
                     time.sleep(0.1)
-                    if busy_checks % 10 == 0: # Log every second if sleep is 0.1s
-                        logger.info(f"DEBUG: Pygame is busy... (checked {busy_checks} times)")
-                
-                if busy_checks == 0:
-                    logger.warning("DEBUG: Pygame was not busy after calling play(). This might indicate an issue with playback not starting.")
-                else:
-                    logger.info(f"DEBUG: Pygame finished playing after {busy_checks} checks.")
-
             elif HAS_PLAYSOUND:
+                import playsound
                 playsound.playsound(audio_path)
-                logger.info("Playsound playback completed.")
             else:
-                logger.warning("No audio playback library available (pygame/playsound).")
+                logger.warning("No audio playback library available.")
                 return False
             
-            self.is_speaking = False
-            logger.info("Audio playback completed")
+            logger.info("Audio playback completed.")
             return True
-            
         except Exception as e:
-            logger.error(f"Failed to play audio: {e}", exc_info=True) # Use exc_info=True for full traceback
-            self.is_speaking = False
+            logger.error(f"Failed to play audio file '{audio_path}': {e}", exc_info=True)
             return False
-    
-    async def process_voice_interaction(
-            self, 
-            user_input: Optional[str] = None,
-            chat_history: List[Dict] = None,
-            memory_context: List[str] = None,
-            user_emotion: Optional[str] = None, # --- NEW PARAMETER ---
-            emotion_confidence: Optional[float] = None, # --- NEW PARAMETER ---
-            ) -> Dict:
-        """
-        Process a complete voice interaction cycle (transcribe, LLM, TTS).
-        Enhanced to handle Hindi translation and provide translation metadata.
-        
-        Args:
-            user_input: Pre-provided user input (e.g., from an audio file transcription
-                        or direct text input from frontend)
-            
-        Returns:
-            Dictionary with interaction results including translation metadata
-        """
+        finally:
+            self.is_speaking = False
 
-        if chat_history is None:
-            chat_history = [] # Provide default empty list if not passed
-        if memory_context is None:
-            memory_context = [] # Provide default empty list if not passed
+    async def process_voice_interaction(self, **kwargs) -> Dict:
+        """
+        Processes a full voice interaction cycle: Listen -> Think -> Analyze -> Respond.
+        """
+        user_input = kwargs.get("user_input")
+        chat_history = kwargs.get("chat_history", [])
+        
         try:
-            # Step 1: Get user input (from pre-provided or live mic)
-            translation_info = {}
-            
+            # === Step 1: Get User Input ===
             if user_input is None:
-                # This branch is for local microphone input
-                user_text = await self.listen_for_speech(timeout=10)
-                if not user_text:
-                    return {
-                        "success": False,
-                        "error": "No speech detected",
-                        "user_input": "",
-                        "mai_response": "",
-                        "audio_path": "",
-                        "translation_info": {}
-                    }
-            else:
-                # This branch is for input provided by the calling Flask app (e.g., from blob)
-                user_text = user_input
+                user_input = await self.listen_for_speech()
+                if not user_input:
+                    return {"success": False, "error": "No speech detected", "mai_response": ""}
+
+            logger.info(f"User input received: '{user_input}'")
             
-            logger.info(f"User input received: '{user_text}'")
+            # --- Optional: Analyze user's emotion for context ---
+            user_emotion, user_emotion_confidence = await analyze_sentiment(user_input)
+            logger.info(f"Analyzed user emotion: {user_emotion} (Confidence: {user_emotion_confidence:.2f})")
             
-            # Step 2: Generate Mai's response
-            # AWAIT the coroutine here
+            # === Step 2: Generate LLM Response ===
             response_data = await self.llm_handler.generate_response(
-                user_message=user_text,
+                user_message=user_input,
                 chat_history=chat_history,
-                memory_context=memory_context,
-                user_emotion=user_emotion, # --- NEW: Pass emotion to LLMHandler ---
-                emotion_confidence=emotion_confidence # --- NEW: Pass confidence ---
+                # Pass user's emotion to the LLM for better contextual responses
+                user_emotion=user_emotion,
+                emotion_confidence=user_emotion_confidence
             )
             
-            if not response_data["success"]:
-                logger.error(f"LLM response generation failed: {response_data.get('error', 'Unknown error')}")
-                return {
-                    "success": False,
-                    "error": response_data["error"],
-                    "user_input": user_text,
-                    "mai_response": response_data["response"],
-                    "audio_path": "",
-                    "translation_info": translation_info
-                }
-            
+            if not response_data.get("success"):
+                error_msg = response_data.get('error', 'Unknown LLM error')
+                logger.error(f"LLM response generation failed: {error_msg}")
+                return {"success": False, "error": error_msg, "mai_response": "I'm sorry, I had trouble thinking of a response."}
+
             mai_response = response_data["response"]
             logger.info(f"Mai's response: '{mai_response}'")
             
-            # Step 3: Generate speech for Mai's response
-            # Use UUID for a truly unique filename to avoid conflicts, especially in web env
+            # --- FIX APPLIED HERE ---
+            # Analyze Mai's own response to determine the emotion for her voice.
+            mai_emotion, mai_emotion_confidence = await analyze_sentiment(mai_response)
+            logger.info(f"Analyzed Mai's response emotion for TTS: {mai_emotion} (Confidence: {mai_emotion_confidence:.2f})")
+
             audio_filename = f"mai_response_{uuid.uuid4()}.mp3"
-            audio_full_path = await self.generate_speech(mai_response, audio_filename)
-            
-            # # Step 4: Update chat history
-            # self.get_chat_history.append({"role": "user", "content": user_text})
-            # self.get_chat_history.append({"role": "assistant", "content": mai_response})
-            
-            # # Keep only last 20 messages to manage memory
-            # if len(self.chat_history) > 20:
-            #     self.chat_history = self.chat_history[-20:]
+
+            # Pass the detected emotion to the speech generation method.
+            # Your current code is likely missing the 'emotion=mai_emotion' part of this line.
+            audio_full_path = await self.generate_speech(mai_response, audio_filename, emotion=mai_emotion)
             
             return {
                 "success": True,
-                "user_input": user_text,
+                "user_input": user_input,
+                "user_emotion": user_emotion,
                 "mai_response": mai_response,
-                "audio_path": audio_full_path, # Return full path here, app.py will extract filename
+                "mai_emotion": mai_emotion,
+                "audio_path": audio_full_path,
                 "usage": response_data.get("usage", {}),
-                "model": response_data.get("model", ""),
-                "translation_info": translation_info
             }
-            
         except Exception as e:
-            logger.error(f"Error in process_voice_interaction: {e}", exc_info=True)
-            return {
-                "success": False,
-                "error": str(e),
-                "user_input": user_input or "",
-                "mai_response": "I'm sorry, I encountered an error processing your request.",
-                "audio_path": "",
-                "translation_info": {}
-            }
+            logger.error(f"Critical error in process_voice_interaction: {e}", exc_info=True)
+            return {"success": False, "error": str(e), "mai_response": "I'm sorry, a critical error occurred."}
     
-    async def voice_chat_loop(self, max_turns: Optional[int] = None, 
-                              callback: Optional[Callable] = None) -> None:
-        """
-        Main voice chat loop for continuous conversation (for local console usage).
-        
-        Args:
-            max_turns: Maximum number of conversation turns (None for unlimited)
-            callback: Optional callback function called after each interaction
-        """
-        logger.info("Starting voice chat loop...")
-        print("\n🎙️ Mai is ready to chat! Say something or type 'quit' to exit.")
-        
-        # Initial greeting
-        greeting = "Hi there! I'm Mai, your emotionally intelligent AI assistant. How are you feeling today?"
+    async def voice_chat_loop(self):
+        """Starts a continuous voice chat session, for local console testing."""
+        logger.info("Starting interactive voice chat loop (for testing)...")
+        greeting = "Hi there! I'm Mai. How can I help you today?"
         print(f"\nMai: {greeting}")
         
-        # Generate and play greeting
-        greeting_audio = await self.generate_speech(greeting, "greeting.mp3")
-        if greeting_audio:
-            self.play_audio(greeting_audio)
+        # Give the greeting a friendly tone
+        audio_path = await self.generate_speech(greeting, "greeting.mp3", emotion="friendly")
+        if audio_path: self.play_audio(audio_path)
         
         turn_count = 0
-        
-        try:
-            while True:
-                # Check max turns limit
-                if max_turns and turn_count >= max_turns:
+        while True:
+            turn_count += 1
+            print(f"\n--- Turn {turn_count} ---")
+            
+            result = await self.process_voice_interaction()
+            
+            if result.get("success"):
+                print(f"You ({result.get('user_emotion', 'N/A')}): {result['user_input']}")
+                print(f"Mai ({result.get('mai_emotion', 'N/A')}): {result['mai_response']}")
+                if result.get("audio_path"):
+                    self.play_audio(result["audio_path"])
+                
+                if "quit" in (result.get("user_input") or "").lower():
                     break
-                
-                print(f"\n--- Turn {turn_count + 1} ---")
-                print("🎤 Listening... (speak now or type 'quit')")
-                
-                # Process voice interaction (will use listen_for_speech directly)
-                result = await self.process_voice_interaction(user_input=None)
-                
-                if result["success"]:
-                    print(f"\nYou: {result['user_input']}")
+            else:
+                print(f"Error: {result.get('error', 'Unknown error')}")
+                if result.get("mai_response"):
                     print(f"Mai: {result['mai_response']}")
-                    
-                    # Show translation info if available
-                    if result.get("translation_info", {}).get("was_translated"):
-                        print(f"[Translated from Hindi: '{result['translation_info']['original_text']}']")
-                    
-                    # Play Mai's response
-                    if result["audio_path"]:
-                        print("🔊 Playing Mai's response...")
-                        self.play_audio(result["audio_path"])
-                    
-                    # Call callback if provided
-                    if callback:
-                        callback(result)
-                        
-                else:
-                    print(f"\nError: {result['error']}")
-                    if result["mai_response"]:
-                        print(f"Mai: {result['mai_response']}")
-                
-                # Check for quit condition
-                user_input_lower = result.get("user_input", "").lower()
-                if any(quit_word in user_input_lower for quit_word in ["quit", "exit", "goodbye", "bye"]):
-                    farewell = "It was wonderful talking with you! Take care, and feel free to chat with me anytime."
-                    print(f"\nMai: {farewell}")
-                    
-                    farewell_audio = await self.generate_speech(farewell, "farewell.mp3")
-                    if farewell_audio:
-                        self.play_audio(farewell_audio)
-                    break
-                
-                turn_count += 1
-                
-        except KeyboardInterrupt:
-            print("\n\nVoice chat interrupted by user.")
-        except Exception as e:
-            logger.error(f"Error in voice chat loop: {e}")
-        
+            
+        farewell = "Goodbye! It was nice talking to you."
+        print(f"Mai: {farewell}")
+        farewell_audio = await self.generate_speech(farewell, "farewell.mp3", emotion="friendly")
+        if farewell_audio: self.play_audio(farewell_audio)
         logger.info("Voice chat loop ended.")
-    
-    def set_memory_context(self, memories: List[str]) -> None:
-        """Set memory context for the conversation"""
-        self.memory_context = memories
-    
-    def get_chat_history(self) -> List[Dict]:
-        """Get current chat history"""
-        return self.chat_history.copy()
-    
-    def clear_chat_history(self) -> None:
-        """Clear chat history"""
-        self.chat_history.clear()
-        logger.info("Chat history cleared")
-    
-    def set_voice(self, voice_name: str) -> None:
-        """Change Mai's voice"""
-        self.voice_name = voice_name
-        logger.info(f"Voice changed to: {voice_name}")
-    
+
+    # --- Configuration Methods ---
+    def set_voice(self, voice_name: str):
+        """Changes Mai's voice by calling the configured TTS manager."""
+        self.tts_manager.set_voice(voice_name)
+
     def get_available_voices(self) -> List[str]:
-        """Get list of recommended voices for Mai"""
-        return [
-            "ja-JP-NanamiNeural",      #Original intended Japanese  voice for Mai speking in english with accent lol
-            #"ja-JP-AoiNeural",         #japanese kid #depreciated
-            "en-GB-MaisieNeural",      #British kid
-            "en-US-AnaNeural",         # American Kid
-            "en-IN-NeerjaNeural",      # Soft, expressive Indian English
-            "en-US-JennyMultilingualNeural", # Natural, friendly US English
-            "en-US-AriaNeural",        # Conversational US English
-            "en-GB-SoniaNeural",       # Professional UK English
-            "en-AU-NatashaNeural",     # Warm Australian English
-            "en-CA-ClaraNeural",       # Friendly Canadian English
-        ]
+        """Gets the list of available voices from the configured TTS manager."""
+        return self.tts_manager.get_available_voices()
 
     def get_audio_output_dir(self) -> Path:
-        """Returns the Path object for the audio output directory."""
+        """Returns the path to the directory where audio files are saved."""
         return self.audio_output_dir
-    
-    def set_hindi_translation(self, enabled: bool) -> None:
-        """
-        Enable or disable Hindi to English translation.
-        
-        Args:
-            enabled: Whether to enable Hindi translation
-        """
-        if enabled and not HAS_GOOGLETRANS:
-            logger.warning("Cannot enable Hindi translation: googletrans not available")
-            return
-            
-        self.enable_hindi_translation = enabled
-        if enabled and not self.translator:
-            self.translator = Translator()
-        
-        logger.info(f"Hindi translation {'enabled' if enabled else 'disabled'}")
-    
-    def is_hindi_translation_available(self) -> bool:
-        """Check if Hindi translation is available"""
-        return HAS_GOOGLETRANS and self.enable_hindi_translation
 
-# --- Example usage and testing ---
+
+# --- Example Usage and Testing ---
 async def main():
-    """Test the voice interface with Hindi translation capability"""
-    logger.info("Testing Voice Interface with Hindi Translation...")
+    """Main function to demonstrate and test the refactored VoiceInterface."""
+    logger.info("--- Running Voice Interface Test with Self-Sentiment Analysis ---")
     
-    # Initialize LLM handler
     try:
-        # NOTE: Make sure LLMHandler is correctly set up for your environment.
-        # This might require API keys or local model paths.
-        llm_handler = LLMHandler() 
-        logger.info("LLM Handler initialized")
+        # Step 0: Initialize sentiment analysis model on startup
+        await initialize_sentiment_analysis()
+
+        # Step 1: Initialize the components Mai depends on.
+        llm_handler = LLMHandler()
+        
+        # Step 2: Choose and initialize the desired TTS Manager.
+        tts_provider = EdgeTTSManager(voice_name="en-US-AriaNeural")
+        
+        # Step 3: Inject the dependencies into the VoiceInterface.
+        voice_interface = VoiceInterface(
+            llm_handler=llm_handler,
+            tts_manager=tts_provider,
+            enable_hindi_translation=False # Disabled for this test run
+        )
+        
+        # --- Run Tests ---
+        print("\n=== 1. Testing Expressive Text-to-Speech Generation ===")
+        test_text = "This is wonderful news! I'm so happy."
+        print(f"Text: {test_text}")
+        mai_emotion, _ = await analyze_sentiment(test_text)
+        print(f"Detected emotion for TTS: {mai_emotion}")
+        audio_path = await voice_interface.generate_speech(test_text, "test_expressive_tts.mp3", emotion=mai_emotion)
+        if audio_path:
+            print(f"✅ Expressive TTS generation successful: {audio_path}")
+            voice_interface.play_audio(audio_path)
+        else:
+            print("❌ Expressive TTS generation failed.")
+            
+        print("\n=== 2. Starting Interactive Chat Loop (Optional) ===")
+        if HAS_PYAUDIO and HAS_SPEECH_RECOGNITION:
+             print("Say 'quit' to end the conversation.")
+             await voice_interface.voice_chat_loop()
+        else:
+            print("Skipping interactive loop because microphone support is not available.")
+
+    except ImportError as e:
+        logger.error(f"An essential library is missing: {e}")
+        print(f"Please install the required libraries to run the test: {e}")
     except Exception as e:
-        logger.error(f"Failed to initialize LLM Handler: {e}")
-        print("Please ensure your LLMHandler is correctly configured (e.g., API keys, model paths).")
-        return
-    
-    # Initialize voice interface with Hindi translation enabled
-    voice_interface = VoiceInterface(llm_handler, enable_hindi_translation=True)
-    
-    # Test single interaction with provided English text
-    print("\n=== Testing Single Voice Interaction (English) ===")
-    test_text_input = "Hello Mai, can you tell me about the weather today?"
-    print(f"Simulating frontend sending: '{test_text_input}'")
+        logger.error(f"The test failed with a critical error: {e}", exc_info=True)
 
-    # Call process_voice_interaction with the pre-provided text
-    result = await voice_interface.process_voice_interaction(user_input=test_text_input)
-    print(f"Result: {result}")
-    
-    # Test Hindi translation capability (simulated)
-    print("\n=== Testing Hindi Translation Capability ===")
-    if voice_interface.is_hindi_translation_available():
-        # Simulate Hindi input
-        hindi_text = "नमस्ते माई, आज का मौसम कैसा है?"
-        print(f"Simulating Hindi input: '{hindi_text}'")
-        
-        translation_result = await voice_interface._translate_hindi_to_english(hindi_text)
-        print(f"Translation result: {translation_result}")
-    else:
-        print("Hindi translation not available. Install googletrans with: pip install googletrans==4.0.0-rc1")
-    
-    # If the TTS generation was successful, test audio playback
-        if result["success"] and result["audio_path"]:
-            print(f"Generated audio file: {result['audio_path']}")
-            print("Testing audio playback...")
-            
-            # Test audio playback
-            playback_success = voice_interface.play_audio(result["audio_path"])
-            if playback_success:
-                print("✅ Audio playback test successful")
-            else:
-                print("❌ Audio playback test failed")
-        else:
-            print("❌ TTS generation failed or no audio path returned")
-        
-        # Test audio file transcription capability
-        print("\n=== Testing Audio File Transcription ===")
-        
-        # Create a test audio directory if it doesn't exist
-        test_audio_dir = Path("test_audio")
-        test_audio_dir.mkdir(exist_ok=True)
-        
-        # You would need to place a test audio file here for actual testing
-        test_audio_file = test_audio_dir / "test_audio.wav"
-        
-        if test_audio_file.exists():
-            print(f"Testing transcription with: {test_audio_file}")
-            transcription_result = await voice_interface.transcribe_audio_file(test_audio_file)
-            print(f"Transcription result: {transcription_result}")
-            
-            if transcription_result["success"]:
-                print(f"✅ Transcribed text: '{transcription_result['transcribed_text']}'")
-                if transcription_result["was_translated"]:
-                    print(f"📝 Original text: '{transcription_result['original_text']}'")
-                    print(f"🔄 Translated from {transcription_result['language']} to English")
-            else:
-                print(f"❌ Transcription failed: {transcription_result['error']}")
-        else:
-            print(f"No test audio file found at {test_audio_file}")
-            print("To test audio transcription, place a .wav, .mp3, or .webm file at the above path")
-        
-        # Test voice settings and configuration
-        print("\n=== Testing Voice Configuration ===")
-        
-        # Test available voices
-        available_voices = voice_interface.get_available_voices()
-        print(f"Available voices: {available_voices}")
-        
-        # Test voice switching
-        original_voice = voice_interface.voice_name
-        print(f"Current voice: {original_voice}")
-        
-        # Switch to a different voice for testing
-        test_voice = "en-US-AriaNeural"
-        voice_interface.set_voice(test_voice)
-        print(f"Switched to voice: {voice_interface.voice_name}")
-        
-        # Switch back to original voice
-        voice_interface.set_voice(original_voice)
-        print(f"Restored original voice: {voice_interface.voice_name}")
-        
-        # Test Hindi translation settings
-        print("\n=== Testing Translation Settings ===")
-        
-        print(f"Hindi translation available: {voice_interface.is_hindi_translation_available()}")
-        print(f"Hindi translation enabled: {voice_interface.enable_hindi_translation}")
-        
-        # Test toggling translation
-        voice_interface.set_hindi_translation(False)
-        print(f"After disabling - Hindi translation enabled: {voice_interface.enable_hindi_translation}")
-        
-        voice_interface.set_hindi_translation(True)
-        print(f"After enabling - Hindi translation enabled: {voice_interface.enable_hindi_translation}")
-        
-        # Test memory and chat history management
-        print("\n=== Testing Memory and Chat History ===")
-        
-        # Test setting memory context
-        test_memories = ["User prefers concise responses", "User is interested in technology"]
-        voice_interface.set_memory_context(test_memories)
-        print(f"Set memory context: {test_memories}")
-        
-        # # Test chat history
-        # chat_history = voice_interface.get_chat_history()
-        # print(f"Current chat history length: {len(chat_history)}")
-        
-        # if chat_history:
-        #     print("Recent chat history:")
-        #     for i, message in enumerate(chat_history[-2:]):  # Show last 2 messages
-        #         print(f"  {i+1}. {message['role']}: {message['content'][:50]}...")
-        
-        # # Test clearing chat history
-        # voice_interface.clear_chat_history()
-        # print(f"After clearing - chat history length: {len(voice_interface.get_chat_history())}")
-        
-        # # Interactive test option
-        # print("\n=== Interactive Test Option ===")
-        # print("Would you like to test the interactive voice chat loop?")
-        # print("This will start a conversation with Mai using your microphone.")
-        # print("Type 'yes' to start interactive test, or press Enter to skip:")
-        
-        # user_choice = input().strip().lower()
-        
-        # if user_choice in ['yes', 'y']:
-        #     print("\nStarting interactive voice chat test...")
-        #     print("Say 'quit' or 'exit' to end the conversation.")
-            
-        #     # Define a simple callback to log interactions
-        #     def interaction_callback(result):
-        #         logger.info(f"Interaction completed - Success: {result['success']}")
-        #         if result.get('translation_info', {}).get('was_translated'):
-        #             logger.info(f"Translation occurred: {result['translation_info']}")
-            
-        #     # Start voice chat loop with max 5 turns for testing
-        #     await voice_interface.voice_chat_loop(max_turns=5, callback=interaction_callback)
-        # else:
-        #     print("Skipping interactive test.")
-        
-        print("\n=== Voice Interface Testing Complete ===")
-        print("All tests completed. Check the logs above for any errors or issues.")
-        
-        # Cleanup test files if needed
-        try:
-            # Clean up generated test audio files
-            audio_output_dir = voice_interface.get_audio_output_dir()
-            test_files = list(audio_output_dir.glob("mai_response_*.mp3"))
-            test_files.extend(list(audio_output_dir.glob("greeting.mp3")))
-            test_files.extend(list(audio_output_dir.glob("farewell.mp3")))
-            
-            for file_path in test_files:
-                if file_path.exists():
-                    file_path.unlink()
-                    logger.info(f"Cleaned up test file: {file_path}")
-        except Exception as e:
-            logger.warning(f"Failed to clean up test files: {e}")
 
-    # Helper function for command-line testing
-    def test_voice_interface_cli():
-        """Command-line interface for testing voice interface"""
-        print("Voice Interface CLI Test")
-        print("=======================")
-        print("This will test the voice interface functionality.")
-        print("Make sure you have the required dependencies installed:")
-        print("- pip install SpeechRecognition pyaudio")
-        print("- pip install openai-whisper")
-        print("- pip install edge-tts")
-        print("- pip install pygame")
-        print("- pip install googletrans==4.0.0-rc1")
-        print()
-        
-        try:
-            asyncio.run(main())
-        except KeyboardInterrupt:
-            print("\nTest interrupted by user.")
-        except Exception as e:
-            logger.error(f"Test failed with error: {e}")
-            print(f"Test failed: {e}")
-
-    if __name__ == "__main__":
-        # Check if we're running directly or being imported
-        import sys
-        if len(sys.argv) > 1 and sys.argv[1] == "test":
-            test_voice_interface_cli()
-        else:
-            asyncio.run(main())
+if __name__ == "__main__":
+    try:
+        asyncio.run(main())
+    except KeyboardInterrupt:
+        print("\nProgram interrupted by user. Exiting.")

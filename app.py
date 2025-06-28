@@ -16,10 +16,17 @@ from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.sessions import SessionMiddleware
 from starlette.background import BackgroundTasks
 from google.oauth2 import id_token
+from tts_manager import EdgeTTSManager 
 from google.auth.transport import requests as google_requests
 
+import asyncio
+from contextlib import asynccontextmanager
+
+# Add this global variable
+cleanup_task: Optional[asyncio.Task] = None
+
 # Import Mai's core components
-from llm_handler import LLMHandler
+from llm_handler import EnhancedLLMHandler as LLMHandler
 from voice_interface import VoiceInterface
 
 try:
@@ -71,7 +78,8 @@ llm_handler: Optional[LLMHandler] = None
 memory_manager: Optional[MemoryManager] = None
 voice_interface: Optional[VoiceInterface] = None
 
-TOGETHER_API_KEY_DIRECT = os.getenv("TOGETHER_API_KEY")
+TOGETHER_API_KEY_DIRECT = os.getenv("TOGETHER_API_KEY") #for lama from together.ai
+OPENAI_API_KEY_DIRECT = os.getenv("OPENAI_API_KEY") #for gpt 4o from openai
 AUDIO_OUTPUT_DIR = Path("audio_output")
 AUDIO_OUTPUT_DIR.mkdir(exist_ok=True)
 GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID")
@@ -101,7 +109,7 @@ async def lifespan(app: FastAPI):
     Asynchronously initialize Mai's core components at startup
     and gracefully shut down resources at application exit.
     """
-    global llm_handler, memory_manager, voice_interface
+    global llm_handler, memory_manager, voice_interface, cleanup_task
     
     logger.info("Starting Mai components initialization (via lifespan)...")
     try:
@@ -122,18 +130,26 @@ async def lifespan(app: FastAPI):
         else:
             logger.error("LLM handler connection test failed. This might cause issues.")
 
-        # 2. Initialize Memory Manager
-        logger.info("Initializing memory manager...")
-        memory_manager = MemoryManager() 
-        logger.info("Memory manager initialized successfully.")
+        # 2. Initialize ENHANCED Memory Manager with LLM integration
+        logger.info("Initializing enhanced memory manager with enhanced LLM integration...")
+        memory_manager = MemoryManager(
+            collection_name="mai_memories", 
+            persist_directory="./mai_memory",
+            llm_handler=llm_handler  # Pass LLM handler for intelligent episode summaries
+        ) 
+        logger.info("Enhanced memory manager initialized successfully.")
 
-        # 3. Initialize Voice Interface
+        # 3. Initialize Voice Interface (unchanged)
         logger.info("Initializing voice interface...")
         if llm_handler is None:
             raise RuntimeError("LLMHandler was not initialized, cannot initialize VoiceInterface.")
-        # VoiceInterface itself should not manage chat history or memory context for web interactions
-        voice_interface = VoiceInterface(llm_handler=llm_handler) 
-        logger.info("Voice interface initialized successfully.")
+        
+        tts_provider = EdgeTTSManager(voice_name="en-US-AnaNeural")
+        voice_interface = VoiceInterface(
+            llm_handler=llm_handler,
+            tts_manager=tts_provider
+        )
+        logger.info(f"VoiceInterface initialized successfully with {type(tts_provider).__name__}.")
 
     except ValueError as ve:
         logger.critical(f"CRITICAL ERROR: API key is missing or invalid - {ve}")
@@ -141,12 +157,35 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.critical(f"CRITICAL ERROR: Unexpected error during component initialization: {e}", exc_info=True)
         raise RuntimeError(f"An unexpected error occurred during Mai component setup: {e}") from e
+    
+    # Start periodic cleanup task
+    cleanup_task = asyncio.create_task(periodic_session_cleanup())
+    logger.info("Started periodic session cleanup task")
 
     logger.info("All Mai components initialized.")
-    yield  # This yields control to the application, which will now start processing requests
+    yield  # This yields control to the application
 
     # --- Code after yield runs on shutdown ---
     logger.info("FastAPI application is shutting down (via lifespan)...")
+
+    # Cancel cleanup task on shutdown
+    if cleanup_task:
+        cleanup_task.cancel()
+        try:
+            await cleanup_task
+        except asyncio.CancelledError:
+            pass
+        logger.info("Stopped periodic session cleanup task")
+    
+    # NEW: Cleanup active sessions before shutdown
+    if memory_manager:
+        logger.info("Cleaning up active sessions and creating final episodes...")
+        try:
+            memory_manager.cleanup_expired_sessions()
+            logger.info("Session cleanup completed.")
+        except Exception as e:
+            logger.error(f"Error during session cleanup: {e}")
+    
     if llm_handler and hasattr(llm_handler, 'aclose'):
         logger.info("Shutting down LLMHandler's HTTP client gracefully...")
         try:
@@ -189,6 +228,17 @@ from fastapi.staticfiles import StaticFiles
 app.mount("/audio_output", StaticFiles(directory=AUDIO_OUTPUT_DIR), name="audio_output")
 
 # --- Helper Functions ---
+
+async def periodic_session_cleanup():
+    """Periodically clean up expired sessions."""
+    while True:
+        try:
+            await asyncio.sleep(300)  # Check every 5 minutes
+            if memory_manager:
+                memory_manager.cleanup_expired_sessions()
+                logger.debug("Periodic session cleanup completed")
+        except Exception as e:
+            logger.error(f"Error in periodic session cleanup: {e}")
 
 async def get_user_id(request: Request) -> str:
     """
@@ -278,7 +328,7 @@ async def read_root(request: Request):
     """Renders the main chat interface."""
     return templates.TemplateResponse("chat.html", {"request": request})
 
-@app.get("/audio_interface", response_class=HTMLResponse)
+@app.get("/voice", response_class=HTMLResponse)
 async def audio_interface_route(request: Request):
     """Renders the audio chat interface."""
     return templates.TemplateResponse("audio_chat.html", {"request": request})
@@ -335,17 +385,31 @@ async def chat_endpoint(
         memory_context = memory_manager.retrieve_memories(
             query=user_message,
             user_id=user_id,
-            limit=50
+            limit=50,
+            include_flash=True,  # Include flash memories
+            memory_types=None,   # All types, or specify ['core', 'episodic', 'conversational']
+            importance_filter=None  # All importance levels, or specify 'high', 'medium', 'low'
         )
-        logger.info(f"Retrieved {len(memory_context)} relevant memories for user {user_id}.")
+        memory_types_count = {}
+        flash_count = 0
+        for mem in memory_context:
+            source = mem.get('metadata', {}).get('source', 'persistent')
+            if source == 'flash_memory':
+                flash_count += 1
+            else:
+                mem_type = mem.get('metadata', {}).get('type', 'conversational')
+                memory_types_count[mem_type] = memory_types_count.get(mem_type, 0) + 1
+
+        logger.info(f"Retrieved {len(memory_context)} relevant memories for user {user_id}: "
+                f"{flash_count} flash, {dict(memory_types_count)} persistent")
 
         logger.debug("Generating response using LLM...")
         llm_response = await llm_handler.generate_response(
             user_message=user_message,
-            chat_history=chat_history, # Pass the session's chat history
-            memory_context=memory_context, # Pass the retrieved memory context
-            user_emotion=user_emotion, # Pass emotion to the LLMHandler
-            emotion_confidence=emotion_confidence, # Pass confidence too (optional for LLM, good for logging/memory)
+            chat_history=chat_history,
+            memory_context=memory_context,  # Now includes full metadata
+            user_emotion=user_emotion,
+            emotion_confidence=emotion_confidence,
         )
 
         if not llm_response['success']:
@@ -391,10 +455,16 @@ async def chat_endpoint(
                 'memories_stored': stored_memories,
                 'model': llm_response.get('model', 'unknown'),
                 'usage': llm_response.get('usage', {}),
+                'response_mode': llm_response.get('response_mode', 'unknown'),  # NEW
                 'user_emotion': user_emotion,
                 'emotion_confidence': emotion_confidence,
-                'ai_emotion': ai_emotion, # Return AI emotion
-                'user_name': user_name_for_storage # Also return to frontend for clarity
+                'ai_emotion': ai_emotion,
+                'user_name': user_name_for_storage,
+                'memory_breakdown': {  # NEW detailed breakdown
+                    'flash_memories': flash_count,
+                    'persistent_types': memory_types_count,
+                    'total_context': len(memory_context)
+                }
             }
         })
 
@@ -407,6 +477,173 @@ async def chat_endpoint(
             detail='Internal server error',
             headers={"X-Mai-Error": 'Sorry, I encountered an unexpected error. Please try again.'}
         )
+
+@app.get("/enhanced_memory_insights")
+async def enhanced_memory_insights_endpoint(request: Request):
+    """Get detailed insights about the user's memory patterns."""
+    if memory_manager is None:
+        raise HTTPException(status_code=503, detail='Memory services are not ready.')
+    
+    try:
+        user_id = await get_user_id(request)
+        
+        # Get comprehensive memory insights
+        stats = memory_manager.get_memory_stats()
+        recent_memories = memory_manager.get_recent_memories(user_id, limit=10, include_flash=True)
+        flash_memories = memory_manager.get_flash_memories(user_id)
+        session_stats = memory_manager.get_active_session_stats()
+        
+        # Analyze memory patterns
+        user_name = memory_manager.get_user_name(user_id) or "Guest"
+        user_persistent_count = stats.get('memories_by_user', {}).get(user_name, 0)
+        
+        # Emotion analysis from recent memories
+        recent_emotions = []
+        contexts = []
+        for mem in recent_memories:
+            metadata = mem.get('metadata', {})
+            if metadata.get('emotion'):
+                recent_emotions.append(metadata['emotion'])
+            if metadata.get('context'):
+                contexts.append(metadata['context'])
+        
+        emotion_distribution = {}
+        for emotion in recent_emotions:
+            emotion_distribution[emotion] = emotion_distribution.get(emotion, 0) + 1
+        
+        context_distribution = {}
+        for context in contexts:
+            context_distribution[context] = context_distribution.get(context, 0) + 1
+        
+        return JSONResponse({
+            'success': True,
+            'user_id': user_id,
+            'user_name': user_name,
+            'memory_insights': {
+                'persistent_memories': user_persistent_count,
+                'flash_memories': len(flash_memories),
+                'recent_activity': len(recent_memories),
+                'active_session': user_id in memory_manager._active_sessions,
+                'emotion_patterns': emotion_distribution,
+                'context_patterns': context_distribution,
+                'session_info': session_stats.get('sessions_by_user', {}).get(user_name, None)
+            },
+            'system_insights': {
+                'total_users': len(stats.get('memories_by_user', {})),
+                'total_memories': stats.get('total_persistent_memories', 0),
+                'active_sessions': session_stats.get('total_active_sessions', 0)
+            }
+        })
+    
+    except Exception as e:
+        logger.exception(f"Error getting enhanced memory insights: {e}")
+        raise HTTPException(status_code=500, detail='Failed to get memory insights')
+
+
+@app.get("/session_stats")
+async def session_stats_endpoint(request: Request):
+    """Get statistics about active sessions."""
+    if memory_manager is None:
+        raise HTTPException(status_code=503, detail='Memory services are not ready.')
+    
+    try:
+        user_id = await get_user_id(request)
+        session_stats = memory_manager.get_active_session_stats()
+        
+        # Check if current user has an active session
+        current_user_session = None
+        if hasattr(memory_manager, '_active_sessions') and user_id in memory_manager._active_sessions:
+            session_data = memory_manager._active_sessions[user_id]
+            current_user_session = {
+                'session_id': session_data['session_id'],
+                'start_time': session_data['start_time'],
+                'interactions': len(session_data['interactions']),
+                'last_activity': session_data['last_activity']
+            }
+        
+        return JSONResponse({
+            'success': True,
+            'current_user_session': current_user_session,
+            'global_session_stats': session_stats,
+            'user_id': user_id
+        })
+    except Exception as e:
+        logger.exception(f"Error getting session stats: {e}")
+        raise HTTPException(status_code=500, detail='Failed to get session statistics')
+
+
+@app.post("/generate_manual_episode")
+async def generate_manual_episode_endpoint(request: Request, data: dict):
+    """Manually generate an episode summary from provided conversation data."""
+    if llm_handler is None or memory_manager is None:
+        raise HTTPException(status_code=503, detail='Mai services are not ready.')
+    
+    try:
+        user_id = await get_user_id(request)
+        conversation_data = data.get('conversation_data', [])
+        
+        if not conversation_data:
+            raise HTTPException(status_code=400, detail='No conversation data provided')
+        
+        # Generate episode using enhanced LLM handler
+        episode_result = await llm_handler.generate_episode_summary(
+            conversation_data=conversation_data,
+            user_context={'user_id': user_id}
+        )
+        
+        if episode_result['success']:
+            # Store the generated episode
+            user_name = memory_manager.get_user_name(user_id)
+            success = memory_manager.store_episode_summary(
+                summary_text=episode_result['summary'],
+                user_id=user_id,
+                episode_context="manual_generation",
+                user_name=user_name
+            )
+            
+            return JSONResponse({
+                'success': True,
+                'episode_summary': episode_result['summary'],
+                'stored': success,
+                'usage': episode_result.get('usage', {})
+            })
+        else:
+            return JSONResponse({
+                'success': False,
+                'error': episode_result.get('error', 'Failed to generate episode'),
+                'episode_summary': None
+            })
+    
+    except Exception as e:
+        logger.exception(f"Error generating manual episode: {e}")
+        raise HTTPException(status_code=500, detail='Failed to generate episode')
+
+
+
+@app.post("/force_end_session")
+async def force_end_session_endpoint(request: Request):
+    """Manually end the current user's session and create episode."""
+    if memory_manager is None:
+        raise HTTPException(status_code=503, detail='Memory services are not ready.')
+    
+    try:
+        user_id = await get_user_id(request)
+        
+        if hasattr(memory_manager, '_active_sessions') and user_id in memory_manager._active_sessions:
+            memory_manager.force_end_session(user_id)
+            logger.info(f"Manually ended session for user {user_id}")
+            return JSONResponse({
+                'success': True,
+                'message': 'Session ended and episode creation initiated'
+            })
+        else:
+            return JSONResponse({
+                'success': False,
+                'message': 'No active session found for user'
+            })
+    except Exception as e:
+        logger.exception(f"Error force ending session: {e}")
+        raise HTTPException(status_code=500, detail='Failed to end session')
 
 @app.post("/voice_chat")
 async def voice_chat_endpoint(
@@ -658,7 +895,8 @@ async def text_to_voice_chat_endpoint(
         # Call the existing generate_speech method
         audio_full_path_str = await voice_interface.generate_speech(
             text=mai_response_text,
-            filename=unique_audio_filename
+            filename=unique_audio_filename,
+            #emotion=ai_emotion # this is where response is generated for text to voice part
         )
 
         if not audio_full_path_str:
@@ -745,6 +983,109 @@ async def text_to_voice_chat_endpoint(
 #         filename=filename
 #     )
 
+
+from google_auth_oauthlib.flow import Flow
+from fastapi.responses import RedirectResponse
+
+# --- OAuth 2.0 Configuration ---
+
+# This tells the OAuth library that you're running locally.
+# IMPORTANT: REMOVE THIS LINE WHEN YOU DEPLOY TO A LIVE SERVER.
+#os.environ['OAUTHLIB_INSECURE_TRANSPORT'] = '1'
+
+# The REDIRECT_URI must be authorized in your Google Cloud Console credentials.
+# For local testing, use: 'http://127.0.0.1:5000/auth/google/callback' (or your port)
+# For production, use your live domain: 'https://your-domain.com/auth/google/callback'
+REDIRECT_URI = "https://mai.rrenterprises.one/auth/google/callback"
+
+SCOPES = [
+    "https://www.googleapis.com/auth/userinfo.profile",
+    "https://www.googleapis.com/auth/userinfo.email",
+    "openid"
+]
+
+# Ensure the client_secret.json file exists.
+if not os.path.exists("client_secret.json"):
+    logger.critical("CRITICAL ERROR: client_secret.json not found. The redirect login flow will not work.")
+    # Assign a dummy flow to prevent startup crash, but log the severe error.
+    flow = None
+else:
+    flow = Flow.from_client_secrets_file(
+        client_secrets_file="client_secret.json",
+        scopes=SCOPES,
+        redirect_uri=REDIRECT_URI
+    )
+
+@app.get("/login/google")
+async def login_redirect(request: Request):
+    """
+    Initiates the Google OAuth 2.0 redirect flow.
+    This is the fallback for mobile clients where the JS prompt fails.
+    """
+    if not flow:
+         raise HTTPException(status_code=500, detail="Server configuration error: OAuth flow not initialized.")
+    
+    authorization_url, state = flow.authorization_url()
+    # Store the state in the session for later validation
+    request.session['state'] = state
+    return RedirectResponse(authorization_url)
+
+
+@app.get("/auth/google/callback")
+async def auth_callback(request: Request):
+    """
+    Handles the redirect back from Google. Verifies the user, sets the session,
+    and redirects back to the main application.
+    """
+    if not flow:
+        raise HTTPException(status_code=500, detail="Server configuration error: OAuth flow not initialized.")
+
+    # 1. Validate the state to prevent CSRF attacks
+    state_from_session = request.session.pop('state', None)
+    state_from_google = request.query_params.get('state')
+    
+    if not state_from_session or state_from_session != state_from_google:
+        raise HTTPException(status_code=400, detail="State mismatch error. Invalid request.")
+
+    try:
+        # 2. Exchange the authorization code for credentials (tokens)
+        flow.fetch_token(authorization_response=str(request.url))
+        credentials = flow.credentials
+
+        # 3. Verify the ID token to get user info (same as your other login route)
+        id_info = id_token.verify_oauth2_token(
+            id_token=credentials.id_token, 
+            request=google_requests.Request(), 
+            audience=GOOGLE_CLIENT_ID
+        )
+
+        email = id_info['email']
+        name = id_info.get('name', 'User')
+        logger.info(f"Redirect flow successful for email: {email}")
+
+        # 4. Use your existing helper to get or create the user ID
+        user_id_from_google = await get_or_create_user_id_from_email(email, name)
+
+        # 5. Set the session keys, mirroring your /google_login route exactly
+        request.session['user_id'] = user_id_from_google
+        request.session['google_user_id'] = user_id_from_google
+        request.session['user_email'] = email
+        request.session['user_name'] = name
+        
+        logger.info(f"Session created via redirect for user ID: {user_id_from_google}")
+
+        # 6. Redirect the user back to the audio interface
+        return RedirectResponse(url="/voice")
+
+    except Exception as e:
+        logger.error(f"Error in Google auth callback: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Authentication failed during callback.")
+
+# ==============================================================================
+# === END OF ADDED BLOCK =======================================================
+# ==============================================================================
+
+
 @app.post("/google_login")
 async def google_login(request: Request):
     """
@@ -808,12 +1149,20 @@ async def google_login(request: Request):
 
 @app.post("/logout")
 async def logout_endpoint(request: Request):
-    """Clears all session data, effectively logging out the user."""
+    """Clears all session data and ends active memory sessions."""
     user_id = request.session.pop('google_user_id', None)
     user_email = request.session.pop('user_email', None)
     user_name = request.session.pop('user_name', None)
-    request.session.pop('user_id', None) # Clear fallback non-auth ID too
-    request.session.pop('chat_history', None) # Clear chat history on logout
+    request.session.pop('user_id', None)
+    request.session.pop('chat_history', None)
+
+    # NEW: Force end any active memory session
+    if user_id and memory_manager:
+        try:
+            memory_manager.force_end_session(user_id)
+            logger.info(f"Ended active memory session for user {user_id} on logout")
+        except Exception as e:
+            logger.error(f"Error ending session on logout: {e}")
 
     if user_id:
         logger.info(f"User {user_id} ({user_email}) logged out and session cleared.")
@@ -866,7 +1215,17 @@ async def memory_stats_endpoint(request: Request):
         user_id = await get_user_id(request)
         overall_stats = memory_manager.get_memory_stats()
         recent_memories = memory_manager.get_recent_memories(user_id, limit=5)
-        user_memory_count = overall_stats.get('memories_by_user', {}).get(user_id, 0)
+        
+        # --- FIX STARTS HERE ---
+        
+        # Get the user's name from the session, defaulting to "Guest"
+        user_name_from_session = request.session.get('user_name', 'Guest')
+        
+        # Use the user's NAME to look up their count in the stats dictionary
+        user_memory_count = overall_stats.get('memories_by_user', {}).get(user_name_from_session, 0)
+        
+        # --- FIX ENDS HERE ---
+
         recent_activity_count = len(recent_memories)
         return JSONResponse({
             'success': True,
@@ -909,7 +1268,12 @@ async def health_check():
         llm_status = await llm_handler.test_connection() 
         memory_stats_data = memory_manager.get_memory_stats()
         memory_status = memory_stats_data is not None and 'error' not in memory_stats_data
-        memory_count = memory_stats_data.get('total_memories', 0) if memory_status else 0
+        
+        # --- FIX FOR HEALTH CHECK ---
+        # The key is 'total_persistent_memories', not 'total_memories'
+        memory_count = memory_stats_data.get('total_persistent_memories', 0) if memory_status else 0
+        # --- END FIX ---
+        
         voice_status = True # VoiceInterface itself doesn't have an external connection to test
                             # Its health depends on LLMHandler and audio libraries.
 

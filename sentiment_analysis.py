@@ -14,11 +14,8 @@ import logging
 from functools import lru_cache
 from typing import Tuple, Optional, Dict, Any
 import torch
-from transformers import (
-    AutoTokenizer, 
-    AutoModelForSequenceClassification, 
-    pipeline
-)
+from transformers import AutoTokenizer, AutoModelForSequenceClassification
+from transformers import pipeline
 import numpy as np
 from pathlib import Path
 import json
