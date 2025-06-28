@@ -117,7 +117,16 @@ Now featuring **real-time voice conversation with attitude**, **individual consc
 
 <div align="center">
 
+<<<<<<< HEAD
 **🎤 Android + Desktop Voice Interface (Now With More Attitude)**
+=======
+**🎤 Android + Desktop Voice Interface**
+
+
+
+
+[![Video Title](https://i.ytimg.com/vi/SlE5rm3gJnY/maxresdefault.jpg)](https://www.youtube.com/watch?v=SlE5rm3gJnY)
+>>>>>>> a7d8df98e7ae7712f1d3e086e7f931f3c85fb0a4
 
 [![Video Title](https://i.ytimg.com/vi/SlE5rm3gJnY/maxresdefault.jpg)](https://www.youtube.com/watch?v=SlE5rm3gJnY)
 
